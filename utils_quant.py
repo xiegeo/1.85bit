@@ -77,10 +77,14 @@ class BitLinear(nn.Linear):
 
     def __init__(self,
             *kargs,
-            #weight_bits=1,
-            #input_bits=8, is static
+            weight_bits=1,
+            input_bits=8,
             **kwargs
         ):
+        if weight_bits != 1:
+            raise ValueError("weight_bits must be 1")
+        if input_bits != 8:
+            raise ValueError("input_bits must be 8")
         super(BitLinear, self).__init__(*kargs, **kwargs)
         self.quant_weight = None
 
