@@ -28,6 +28,7 @@ else:
         #torch_dtype=torch.float16, # CPU does not support float16
         local_files_only=localFilesOnly,
     )#.half()  
+print(f'use {device}')
     
 tokenizer = BitnetTokenizer.from_pretrained(pretrained_model_name_or_path=path, local_files_only=localFilesOnly)
 

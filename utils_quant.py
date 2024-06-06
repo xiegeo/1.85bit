@@ -94,10 +94,10 @@ class BitLinear(nn.Linear):
             quant_weight = STEQuantize_weight_quant.apply(self.weight)
             self.quant_weight = None # quant_weight can not be reused during training
         else:
+            quant_input = activation_quant(input)
             # quantize weight only once for inference
             if self.quant_weight is None:
-                self.quant_weight = activation_quant_8(self.weight)
-            quant_input = activation_quant(input)
+                self.quant_weight = weight_quant(self.weight)
             quant_weight = self.quant_weight
 
         out = nn.functional.linear(quant_input, quant_weight)
