@@ -8,7 +8,7 @@ import time
 import torch
 torch.manual_seed(0)
 
-localFilesOnly = True # set to False to retrieve from Hugging Face model hub
+localFilesOnly = False # set to False to retrieve from Hugging Face model hub
 path = '1bitLLM/bitnet_b1_58-large' # pretrained 729M params trinary model
 
 device = torch.device("cpu")
