@@ -6,10 +6,11 @@ from typing import List, Dict
 import re
 import time
 import torch
-torch.manual_seed(0)
+#torch.manual_seed(0)
 
 localFilesOnly = False # set to False to retrieve from Hugging Face model hub
-path = '1bitLLM/bitnet_b1_58-large' # pretrained 729M params trinary model
+#path = '1bitLLM/bitnet_b1_58-large' # pretrained 729M params trinary model
+#path = '1bitLLM/bitnet_b1_58-3B' # pretrained 3B params trinary model
 
 device = torch.device("cpu")
 model = None
@@ -62,7 +63,7 @@ def chat(model, tokenizer, query: str, history: List[Dict] = None, role: str = "
     history.append({"role": "assistant", "content": response})
     return response, history
 
-for question in ["calculate 1+1", "what is 9*9", "solve 12/9"]:
+for question in ["write hello world in c","calculate 1+1", "what is 9*9", "solve 12/9"]:
     t1 = time.time()
     response, history = chat(model, tokenizer, question, max_length=64)
     t2 = time.time()
