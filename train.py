@@ -32,6 +32,8 @@ class OnDemandDataset(torch.utils.data.Dataset):
         return self.tokenizer(item['text'], padding="max_length", max_length=512, truncation=True, return_tensors='pt')
 
 sfn = "tokenized_train_dataset_512"
+if not os.path.exists(sfn) and os.path.exists("../"+sfn): # find the file if it's in the parent directory
+    sfn = "../"+sfn
 if os.path.exists(sfn):
     tokenized_train_dataset = load_from_disk(sfn)
 else:
@@ -58,7 +60,7 @@ train_loader = torch.utils.data.DataLoader(tokenized_train_dataset, batch_size=b
 
 # Initialize your model
 #model = AutoModel.from_config(AutoConfig.from_dict(bitnet_64_2))
-model = tiny_stories_ref()
+model = tiny_stories_ref().to(device)
 model_save_path = f'tiny_stories_ref/{time.time()}'
 
 # Prepare the optimizer
@@ -97,7 +99,7 @@ for epoch in range(10):  # Number of epochs
         #print(batch)
         #print(batch.keys())
         #print(type(batch['input_ids']))
-        loss = calculate_loss(model, batch['input_ids'])
+        loss = calculate_loss(model, batch['input_ids'].to(device))
         loss.backward()
         optimizer.step()
         
