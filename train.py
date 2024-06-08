@@ -1,7 +1,9 @@
-import time, os
+import time, os, json
 import torch
 from datasets import load_dataset, load_from_disk
 from tqdm import tqdm
+from collections import deque
+
 from modeling_bitnet import BitnetForCausalLM 
 from tokenization_bitnet import BitnetTokenizer 
 from transformers import AutoTokenizer
@@ -13,11 +15,7 @@ if torch.cuda.is_available():
     device = torch.device("cuda")
 print(f'use {device}')
 
-# use the TinyStories dataset
-dataset = load_dataset('roneneldan/TinyStories')
-print(dataset.keys())
-train_dataset = dataset['train']
-test_dataset = dataset['validation']
+tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
 
 class OnDemandDataset(torch.utils.data.Dataset):
     def __init__(self, data, tokenizer):
@@ -29,23 +27,33 @@ class OnDemandDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         item = self.data[idx]
-        return self.tokenizer(item['text'], padding="max_length", max_length=512, truncation=True, return_tensors='pt')
+        return self.tokenizer(item['text'], padding="max_length", max_length=max_length, truncation=True, return_tensors='pt')
 
-sfn = "tokenized_train_dataset_512"
+max_length = 128
+sfn = f"tokenized_train_dataset_{max_length}"
 if not os.path.exists(sfn) and os.path.exists("../"+sfn): # find the file if it's in the parent directory
     sfn = "../"+sfn
 if os.path.exists(sfn):
     tokenized_train_dataset = load_from_disk(sfn)
 else:
-    tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
+    # use the TinyStories dataset
+    dataset = load_dataset('roneneldan/TinyStories')
+    print(dataset.keys())
+    train_dataset = dataset['train']
+    #test_dataset = dataset['validation']
     tokenizer.pad_token = tokenizer.eos_token
     #tokenized_train_dataset = OnDemandDataset(train_dataset, tokenizer)
     tokenized_train_dataset = train_dataset.map(
         lambda x: tokenizer(
-            x['text'], padding="max_length", max_length=512, truncation=True, return_tensors='pt'
+            x['text'], padding="max_length", max_length=max_length, truncation=True, return_tensors='pt'
         ), batched=True)
     tokenized_train_dataset.save_to_disk(sfn)
 tokenized_train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
+
+train_subset = 1024*128
+tokenized_train_dataset = torch.utils.data.Subset(tokenized_train_dataset, indices=range(train_subset))
+print(f"use training dataset with max_length={max_length}, train_subset={train_subset}, number of tokens={max_length*train_subset}")
+
 
 
 # Define your transforms and datasets
@@ -54,14 +62,16 @@ tokenized_train_dataset.set_format(type='torch', columns=['input_ids', 'attentio
 #test_dataset = datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
 
 # Define your dataloaders
-batch_size = 16
+batch_size = 32
+if device.type == 'cpu':
+    batch_size = min(batch_size, 8)
 train_loader = torch.utils.data.DataLoader(tokenized_train_dataset, batch_size=batch_size, shuffle=True)
 #test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=64, shuffle=True)
 
 # Initialize your model
 #model = AutoModel.from_config(AutoConfig.from_dict(bitnet_64_2))
 model = tiny_stories_ref().to(device)
-model_save_path = f'tiny_stories_ref/{time.time()}'
+model_save_path = f'tiny_stories_ref_{max_length}/{time.time()}'
 
 # Prepare the optimizer
 optimizer = torch.optim.AdamW(model.parameters())
@@ -91,9 +101,15 @@ def calculate_loss(model, input):
 # Train the model
 model.train()
 lowest_loss = float('inf')  # Initialize lowest loss as infinity
-for epoch in range(10):  # Number of epochs
+recent_losses = deque([0]*10000, maxlen=10000)
+recent_loss_100 = 0
+recent_loss_1000 = 0
+recent_loss_10000 = 0
+
+for epoch in range(1):  # Number of epochs
+    model.save_pretrained(f'{model_save_path}/e{epoch}')
     total_loss = 0.0  # Initialize total loss for this epoch
-    progress_bar = tqdm(train_loader, desc=f"Epoch {epoch + 1}", position=0, leave=True)
+    progress_bar = tqdm(train_loader, desc=f"E {epoch + 1}", position=0, leave=True)
     for batch_idx, batch in enumerate(progress_bar):
         optimizer.zero_grad()
         #print(batch)
@@ -103,12 +119,29 @@ for epoch in range(10):  # Number of epochs
         loss.backward()
         optimizer.step()
         
-        current_loss = loss.item() / batch_size
+        current_loss = loss.item() / batch_size / max_length
         total_loss += current_loss
+        last_removed = recent_losses[0]
+        recent_losses.append(current_loss)
+        recent_loss_10000 += current_loss - last_removed
+        recent_loss_1000 += current_loss - recent_losses[-1001]
+        recent_loss_100 += current_loss - recent_losses[-101]
+
         #print(total_loss, batch_idx, batch_size)
         avg_loss = total_loss / (batch_idx + 1)
-        progress_bar.set_postfix({'avg loss': avg_loss, 'current': current_loss})
+        progress_bar.set_postfix({
+            'a': avg_loss, 'c': current_loss,
+            'a2': recent_loss_100/100, 'a3': recent_loss_1000/1000, 'a4': recent_loss_10000/10000})
+        
+        if batch_idx % 100 == 0:
+            for text in ["Once","Alice and Bob", "In a galaxy far far away"]:
+                inputs = tokenizer(text, return_tensors='pt').to(device)
+                outputs = model.generate(**inputs, max_length=max_length)
+                decoded = tokenizer.decode(outputs[0], skip_special_tokens=True)
+                print(json.dumps(decoded))
+        
     print(f"Epoch {epoch + 1} completed. Average Loss: {avg_loss}")
 # Save the model
-model.save_pretrained('path_to_save_directory')
+model.save_pretrained(f'{model_save_path}/finish')
+
 print('Finished Training')
