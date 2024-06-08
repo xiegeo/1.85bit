@@ -149,8 +149,10 @@ def train(model,model_name, train_subset = 1024*16, max_length=64):
     print('Finished Training')
     sample_output(model)
     wandb.finish()
-    
-train(tiny_stories_ref(hidden_size=128),"tiny_stories_hs_128")
-train(tiny_stories_ref(layers=4),"tiny_stories_l_4")
-train(tiny_stories_ref(), "tiny_stories_ref")
+
+# only run if main
+if __name__ == "__main__":
+    train(tiny_stories_ref(hidden_size=128),"tiny_stories_hs_128")
+    train(tiny_stories_ref(layers=4),"tiny_stories_l_4")
+    train(tiny_stories_ref(), "tiny_stories_ref")
 
