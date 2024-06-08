@@ -1,5 +1,5 @@
 import time, os, json
-import torch
+import torch, wandb
 from datasets import load_dataset, load_from_disk
 from tqdm import tqdm
 from collections import deque
@@ -29,7 +29,7 @@ class OnDemandDataset(torch.utils.data.Dataset):
         item = self.data[idx]
         return self.tokenizer(item['text'], padding="max_length", max_length=max_length, truncation=True, return_tensors='pt')
 
-max_length = 128
+max_length = 64
 sfn = f"tokenized_train_dataset_{max_length}"
 if not os.path.exists(sfn) and os.path.exists("../"+sfn): # find the file if it's in the parent directory
     sfn = "../"+sfn
@@ -54,15 +54,8 @@ train_subset = 1024*128
 tokenized_train_dataset = torch.utils.data.Subset(tokenized_train_dataset, indices=range(train_subset))
 print(f"use training dataset with max_length={max_length}, train_subset={train_subset}, number of tokens={max_length*train_subset}")
 
-
-
-# Define your transforms and datasets
-#transform = transforms.Compose([transforms.ToTensor()])
-#train_dataset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-#test_dataset = datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
-
 # Define your dataloaders
-batch_size = 32
+batch_size = 64
 if device.type == 'cpu':
     batch_size = min(batch_size, 8)
 train_loader = torch.utils.data.DataLoader(tokenized_train_dataset, batch_size=batch_size, shuffle=True)
@@ -71,7 +64,8 @@ train_loader = torch.utils.data.DataLoader(tokenized_train_dataset, batch_size=b
 # Initialize your model
 #model = AutoModel.from_config(AutoConfig.from_dict(bitnet_64_2))
 model = tiny_stories_ref().to(device)
-model_save_path = f'tiny_stories_ref_{max_length}/{time.time()}'
+model_name = f'tiny_stories_ref_{max_length}'
+model_save_path = f'{model_name}/{time.time()}'
 
 # Prepare the optimizer
 optimizer = torch.optim.AdamW(model.parameters())
@@ -97,6 +91,18 @@ def calculate_loss(model, input):
     shift_labels = input[:, 1:]
     loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.reshape(-1))
     return loss
+
+wandb.init(project="npl185", name=model_name, 
+           config={
+               "tokenizer_max_length": max_length,
+               "train_subset": train_subset,
+               "train_batch_size": batch_size, 
+               "model_save_path": model_save_path,
+               "model_name": model_name,
+               "device": device.type,
+               "optimizer": optimizer.__class__.__name__,
+               "host": os.name,
+            })
 
 # Train the model
 model.train()
@@ -133,6 +139,8 @@ for epoch in range(1):  # Number of epochs
             'a': avg_loss, 'c': current_loss,
             'a2': recent_loss_100/100, 'a3': recent_loss_1000/1000, 'a4': recent_loss_10000/10000})
         
+        wandb.log({'batch_idx':batch_idx, 'loss': current_loss, 'avg_loss': avg_loss, 'recent_loss_100': recent_loss_100/100, 'recent_loss_1000': recent_loss_1000/1000, 'recent_loss_10000': recent_loss_10000/10000})
+        
         if batch_idx % 100 == 0:
             for text in ["Once","Alice and Bob", "In a galaxy far far away"]:
                 inputs = tokenizer(text, return_tensors='pt').to(device)
@@ -145,3 +153,4 @@ for epoch in range(1):  # Number of epochs
 model.save_pretrained(f'{model_save_path}/finish')
 
 print('Finished Training')
+wandb.finish()

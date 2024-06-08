@@ -163,3 +163,4 @@ cython_debug/
 tokenized_train_dataset*
 tiny_stories_ref/
 tiny_stories_ref*
+wandb/
