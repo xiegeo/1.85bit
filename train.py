@@ -34,7 +34,7 @@ sfn = f"tokenized_train_dataset_{max_length}"
 if not os.path.exists(sfn) and os.path.exists("../"+sfn): # find the file if it's in the parent directory
     sfn = "../"+sfn
 if os.path.exists(sfn):
-    tokenized_train_dataset = load_from_disk(sfn)
+    tokenized_train_dataset_full = load_from_disk(sfn)
 else:
     # use the TinyStories dataset
     dataset = load_dataset('roneneldan/TinyStories')
@@ -43,15 +43,17 @@ else:
     #test_dataset = dataset['validation']
     tokenizer.pad_token = tokenizer.eos_token
     #tokenized_train_dataset = OnDemandDataset(train_dataset, tokenizer)
-    tokenized_train_dataset = train_dataset.map(
+    tokenized_train_dataset_full = train_dataset.map(
         lambda x: tokenizer(
             x['text'], padding="max_length", max_length=max_length, truncation=True, return_tensors='pt'
         ), batched=True)
-    tokenized_train_dataset.save_to_disk(sfn)
-tokenized_train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
+    tokenized_train_dataset_full.save_to_disk(sfn)
+tokenized_train_dataset_full.set_format(type='torch', columns=['input_ids', 'attention_mask'])
+
+
 
 train_subset = 1024*128
-tokenized_train_dataset = torch.utils.data.Subset(tokenized_train_dataset, indices=range(train_subset))
+tokenized_train_dataset = torch.utils.data.Subset(tokenized_train_dataset_full, indices=range(train_subset))
 print(f"use training dataset with max_length={max_length}, train_subset={train_subset}, number of tokens={max_length*train_subset}")
 
 # Define your dataloaders
@@ -104,6 +106,14 @@ wandb.init(project="npl185", name=model_name,
                "host": os.name,
             })
 
+def sample_output(model, batch_idx=-1):
+    for text in ["Once","Alice and Bob", "In a galaxy far far away"]:
+        inputs = tokenizer(text, return_tensors='pt').to(device)
+        outputs = model.generate(**inputs, max_length=max_length)
+        decoded = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        print(json.dumps(decoded))
+        wandb.log({'batch_idx':batch_idx, 'text': text, 'story': json.dumps(decoded)})
+
 # Train the model
 model.train()
 lowest_loss = float('inf')  # Initialize lowest loss as infinity
@@ -116,6 +126,7 @@ for epoch in range(1):  # Number of epochs
     model.save_pretrained(f'{model_save_path}/e{epoch}')
     total_loss = 0.0  # Initialize total loss for this epoch
     progress_bar = tqdm(train_loader, desc=f"E {epoch + 1}", position=0, leave=True)
+    n = 1
     for batch_idx, batch in enumerate(progress_bar):
         optimizer.zero_grad()
         #print(batch)
@@ -141,16 +152,14 @@ for epoch in range(1):  # Number of epochs
         
         wandb.log({'batch_idx':batch_idx, 'loss': current_loss, 'avg_loss': avg_loss, 'recent_loss_100': recent_loss_100/100, 'recent_loss_1000': recent_loss_1000/1000, 'recent_loss_10000': recent_loss_10000/10000})
         
-        if batch_idx % 100 == 0:
-            for text in ["Once","Alice and Bob", "In a galaxy far far away"]:
-                inputs = tokenizer(text, return_tensors='pt').to(device)
-                outputs = model.generate(**inputs, max_length=max_length)
-                decoded = tokenizer.decode(outputs[0], skip_special_tokens=True)
-                print(json.dumps(decoded))
+        if batch_idx % 10**n == 0:
+            n += 1
+            sample_output(model, batch_idx)
         
     print(f"Epoch {epoch + 1} completed. Average Loss: {avg_loss}")
 # Save the model
 model.save_pretrained(f'{model_save_path}/finish')
 
 print('Finished Training')
+sample_output(model)
 wandb.finish()
