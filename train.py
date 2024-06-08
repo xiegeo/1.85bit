@@ -19,18 +19,31 @@ print(dataset.keys())
 train_dataset = dataset['train']
 test_dataset = dataset['validation']
 
+class OnDemandDataset(torch.utils.data.Dataset):
+    def __init__(self, data, tokenizer):
+        self.data = data
+        self.tokenizer = tokenizer
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        item = self.data[idx]
+        return self.tokenizer(item['text'], padding="max_length", max_length=512, truncation=True, return_tensors='pt')
+
 sfn = "tokenized_train_dataset_512"
 if os.path.exists(sfn):
     tokenized_train_dataset = load_from_disk(sfn)
-    tokenized_train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
 else:
     tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
     tokenizer.pad_token = tokenizer.eos_token
+    #tokenized_train_dataset = OnDemandDataset(train_dataset, tokenizer)
     tokenized_train_dataset = train_dataset.map(
         lambda x: tokenizer(
             x['text'], padding="max_length", max_length=512, truncation=True, return_tensors='pt'
         ), batched=True)
     tokenized_train_dataset.save_to_disk(sfn)
+tokenized_train_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
 
 
 # Define your transforms and datasets
@@ -88,9 +101,11 @@ for epoch in range(10):  # Number of epochs
         loss.backward()
         optimizer.step()
         
-        total_loss += loss.item()
-        avg_loss = total_loss / (batch_idx + 1) / batch_size
-        progress_bar.set_postfix({'loss': avg_loss})
+        current_loss = loss.item() / batch_size
+        total_loss += current_loss
+        #print(total_loss, batch_idx, batch_size)
+        avg_loss = total_loss / (batch_idx + 1)
+        progress_bar.set_postfix({'avg loss': avg_loss, 'current': current_loss})
     print(f"Epoch {epoch + 1} completed. Average Loss: {avg_loss}")
 # Save the model
 model.save_pretrained('path_to_save_directory')
