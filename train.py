@@ -8,14 +8,19 @@ from modeling_bitnet import BitnetForCausalLM
 from tokenization_bitnet import BitnetTokenizer 
 from transformers import AutoTokenizer
 
-from models import bitnet_64_2, tiny_stories_ref
+from models import tiny_stories_ref, bitnet_ref
 
 device = torch.device("cpu")
 if torch.cuda.is_available():
     device = torch.device("cuda")
 print(f'use {device}')
 
-tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
+
+tokenizer_path = "1bitLLM/bitnet_b1_58-large"
+tokenizer = BitnetTokenizer.from_pretrained(tokenizer_path)
+#tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
+
+tokenizer.pad_token = tokenizer.eos_token # use eos_token as padding token for opened-ended generation
 
 batch_size = 8 # use the same batch size for consistent reporting
 if device.type == 'cpu':
@@ -23,6 +28,8 @@ if device.type == 'cpu':
 
 def get_training_loader(train_subset, max_length):
     sfn = f"tokenized_train_dataset_{max_length}"
+    if tokenizer_path == "1bitLLM/bitnet_b1_58-large":
+        sfn = f"bitnet_train_tokens_{max_length}"
     if not os.path.exists(sfn) and os.path.exists("../"+sfn): # find the file if it's in the parent directory
         sfn = "../"+sfn
     if os.path.exists(sfn):
@@ -33,7 +40,6 @@ def get_training_loader(train_subset, max_length):
         print(dataset.keys())
         train_dataset = dataset['train']
         #test_dataset = dataset['validation']
-        tokenizer.pad_token = tokenizer.eos_token
         tokenized_train_dataset_full = train_dataset.map(
             lambda x: tokenizer(
                 x['text'], padding="max_length", max_length=max_length, truncation=True, return_tensors='pt'
@@ -47,7 +53,7 @@ def get_training_loader(train_subset, max_length):
     return torch.utils.data.DataLoader(tokenized_train_dataset, batch_size=batch_size, shuffle=True)
     #test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=64, shuffle=True)
 
-def train(model,model_name, train_subset = 1024*16, max_length=64):
+def train(model,model_name, cost, train_subset = 1024*16, max_length=64):
     # Initialize your model
     #model = AutoModel.from_config(AutoConfig.from_dict(bitnet_64_2))
     model = model.to(device)
@@ -78,8 +84,9 @@ def train(model,model_name, train_subset = 1024*16, max_length=64):
         loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.reshape(-1))
         return loss
 
-    wandb.init(project="npl185", name=model_name, 
+    wandb.init(project="npl185", name=model_name,# mode="offline",
             config={
+                "tokenizer_path":tokenizer_path,
                 "tokenizer_max_length": max_length,
                 "train_subset": train_subset,
                 "train_batch_size": batch_size, 
@@ -91,12 +98,19 @@ def train(model,model_name, train_subset = 1024*16, max_length=64):
                 })
 
     def sample_output(model, batch_idx=-1):
-        for text in ["Once","Alice and Bob", "In a galaxy far far away"]:
-            inputs = tokenizer(text, return_tensors='pt').to(device)
-            outputs = model.generate(**inputs, max_length=max_length)
-            decoded = tokenizer.decode(outputs[0], skip_special_tokens=True)
-            print(json.dumps(decoded))
-            wandb.log({'batch_idx':batch_idx, 'text': text, 'story': json.dumps(decoded)})
+        return_to_train = False
+        if model.training:
+            model.eval()
+            return_to_train = True
+        with torch.no_grad():
+            for text in ["Once","Alice and Bob", "In a galaxy far far away","The lazy dog"]:
+                inputs = tokenizer(text, return_tensors='pt').to(device)
+                outputs = model.generate(**inputs, max_length=max_length)
+                decoded = tokenizer.decode(outputs[0], skip_special_tokens=True)
+                print(json.dumps(decoded))
+                wandb.log({'batch_idx':batch_idx, 'text': text, 'story': json.dumps(decoded)})
+        if return_to_train:
+            model.train()
 
     # Train the model
     model.train()
@@ -118,6 +132,9 @@ def train(model,model_name, train_subset = 1024*16, max_length=64):
             #print(batch)
             #print(batch.keys())
             #print(type(batch['input_ids']))
+            #max_id = batch['input_ids'].max().item()
+            #if max_id >= model.get_input_embeddings().num_embeddings:
+            #    print(f"Max input id ({max_id}) is out of range ({model.get_input_embeddings().num_embeddings})")
             loss = calculate_loss(model, batch['input_ids'].to(device))
             loss.backward()
             optimizer.step()
@@ -135,10 +152,13 @@ def train(model,model_name, train_subset = 1024*16, max_length=64):
             progress_bar.set_postfix({
                 'a': avg_loss, 'c': current_loss,
                 'a2': recent_loss_100/100, 'a3': recent_loss_1000/1000, 'a4': recent_loss_10000/10000})
+            tokens = (batch_idx+1)*batch_size*max_length
+            compute_cost = tokens * cost
+            wandb.log({'tokens':tokens,'batch_idx':batch_idx, 'compute_cost':compute_cost,
+                       'loss': current_loss, 'avg_loss': avg_loss, 
+                       'recent_loss_100': recent_loss_100/100, 'recent_loss_1000': recent_loss_1000/1000, 'recent_loss_10000': recent_loss_10000/10000})
             
-            wandb.log({'batch_idx':batch_idx, 'loss': current_loss, 'avg_loss': avg_loss, 'recent_loss_100': recent_loss_100/100, 'recent_loss_1000': recent_loss_1000/1000, 'recent_loss_10000': recent_loss_10000/10000})
-            
-            if batch_idx % 10**n == 0:
+            if batch_idx % (32*(2**n)) == 0:
                 n += 1
                 sample_output(model, batch_idx)
             
@@ -152,7 +172,12 @@ def train(model,model_name, train_subset = 1024*16, max_length=64):
 
 # only run if main
 if __name__ == "__main__":
-    train(tiny_stories_ref(hidden_size=128),"tiny_stories_hs_128")
-    train(tiny_stories_ref(layers=4),"tiny_stories_l_4")
-    train(tiny_stories_ref(), "tiny_stories_ref")
-
+    #train(tiny_stories_ref(hidden_size=512),"tiny_stories_hs_512")
+    #train(tiny_stories_ref(hidden_size=1024),"tiny_stories_hs_1024")
+    #train(tiny_stories_ref(hidden_size=2048),"tiny_stories_hs_2048")
+    #train(bitnet_ref(), "bitnet_ref")
+    for rounds in [1,4,16]:
+        for hidden_size in [16,32,64,128,256,512]:
+            train_subset = rounds*1024*1024//hidden_size
+            train(tiny_stories_ref(hidden_size=hidden_size),"tiny_stories_hs_512"+str(hidden_size),hidden_size*2, train_subset=train_subset)
+            train(bitnet_ref(hidden_size=hidden_size),"bitnet_hs_"+str(hidden_size),hidden_size*2, train_subset=train_subset)

@@ -165,3 +165,7 @@ tiny_stories_ref/
 tiny_stories_ref*
 wandb/
 tiny_stories_*
+bitnet_hs
+bitnet_hs_*
+bitnet_ref_*
+bitnet_train_tokens_*
