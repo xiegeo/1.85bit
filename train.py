@@ -176,11 +176,9 @@ if __name__ == "__main__":
     #train(tiny_stories_ref(hidden_size=1024),"tiny_stories_hs_1024")
     #train(tiny_stories_ref(hidden_size=2048),"tiny_stories_hs_2048")
     #train(bitnet_ref(), "bitnet_ref")
-    for rounds in [1,4,16]:
+    for rounds in [16,64,256]:
         for hidden_size in [16,32,64,128,256,512]:
-            if rounds > hidden_size//16:
-                continue
-            train_subset = rounds*1024*512//hidden_size
+            train_subset = rounds*1024*2
             #train(tiny_stories_ref(hidden_size=hidden_size),"tiny_stories_hs_"+str(hidden_size),hidden_size*2, train_subset=train_subset)
             train(llama_ref(hidden_size=hidden_size),"llama_hs_"+str(hidden_size),hidden_size*2, train_subset=train_subset)
             train(bitnet_ref(hidden_size=hidden_size),"bitnet_hs_"+str(hidden_size),hidden_size*2, train_subset=train_subset)
