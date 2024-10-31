@@ -192,11 +192,11 @@ class BitnetMLP(nn.Module):
         )
         self.up_proj = BitLinear(
             self.hidden_size, self.intermediate_size, bias=False, 
-            weight_bits=config.weight_bits, input_bits=config.input_bits, 
+            weight_bits=config.weight_bits, input_bits=config.input_bits,   
         )
         self.down_proj = BitLinear(
             self.intermediate_size, self.hidden_size, bias=False, 
-            weight_bits=config.weight_bits, input_bits=config.input_bits, 
+            weight_bits=config.weight_bits, input_bits=config.input_bits,
         )
         self.act_fn = ACT2FN[config.hidden_act]
         self.ffn_layernorm = BitnetRMSNorm(self.intermediate_size, eps=config.rms_norm_eps)

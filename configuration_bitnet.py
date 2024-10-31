@@ -138,6 +138,7 @@ class BitnetConfig(PretrainedConfig):
         attention_dropout=0.0,
         weight_bits=1,
         input_bits=8,
+        stochastic_rounding=False,
         **kwargs,
     ):
         self.vocab_size = vocab_size
@@ -164,6 +165,7 @@ class BitnetConfig(PretrainedConfig):
         self.attention_dropout = attention_dropout
         self.weight_bits = weight_bits
         self.input_bits = input_bits
+        self.stochastic_rounding = stochastic_rounding
 
         super().__init__(
             pad_token_id=pad_token_id,

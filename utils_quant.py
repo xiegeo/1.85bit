@@ -10,6 +10,12 @@ def weight_quant(weight, num_bits=1):
     result = (weight * s).round().clamp(-1, 1) / s
     return result.type(dtype)
 
+def stochastic_weight_quant(weight):
+    dtype = weight.dtype
+    weight = weight.float()
+    s =  1 / weight.abs().mean().clamp(min=1e-5)
+    result = (weight * s + torch.rand_like(weight)).floor().clamp(-1, 1) / s
+    return result.type(dtype)
 
 def activation_quant(x, num_bits=8):
     dtype = x.dtype
@@ -29,7 +35,7 @@ def activation_quant_8(x):
     result = (x * s).round().clamp(Qn, Qp) / s
     return result.type(dtype)   
 
-class BitLinearOLD(nn.Linear): # original code 
+class BitLinearOLD(nn.Linear): # original code, not in use
 
     def __init__(self,
             *kargs,
@@ -37,7 +43,7 @@ class BitLinearOLD(nn.Linear): # original code
             input_bits=8,
             **kwargs
         ):
-        super(BitLinear, self).__init__(*kargs, **kwargs)
+        super(BitLinearOLD, self).__init__(*kargs, **kwargs)
         """
         RMSNorm is placed outside BitLinear
         """
@@ -72,8 +78,18 @@ class STEQuantize_weight_quant(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         return grad_output
+    
+class STEQuantize_stochastic_weight_quant(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):
+        return stochastic_weight_quant(input)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return grad_output
 
 class BitLinear(nn.Linear):
+    default_stochastic_rounding = False
 
     def __init__(self,
             *kargs,
@@ -88,13 +104,21 @@ class BitLinear(nn.Linear):
         super(BitLinear, self).__init__(*kargs, **kwargs)
         self.quant_weight = None
 
-    def forward(self, input):
+    def forward(self, input, stochastic_rounding=None):
+        if stochastic_rounding is None:
+            stochastic_rounding = self.default_stochastic_rounding
         if self.training:
             quant_input = STEQuantize_activation_quant_8.apply(input)
-            quant_weight = STEQuantize_weight_quant.apply(self.weight)
+            if stochastic_rounding:
+                quant_weight = STEQuantize_stochastic_weight_quant.apply(self.weight)
+            else:
+                quant_weight = STEQuantize_weight_quant.apply(self.weight)
             self.quant_weight = None # quant_weight can not be reused during training
         else:
-            quant_input = activation_quant(input)
+            if stochastic_rounding:
+                quant_weight = stochastic_weight_quant(self.weight)
+            else:
+                quant_input = activation_quant(input)
             # quantize weight only once for inference
             if self.quant_weight is None:
                 self.quant_weight = weight_quant(self.weight)
