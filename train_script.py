@@ -26,11 +26,11 @@ for rounds in [1,8]:
             #    continue
             train_subset = rounds*1024*1024//64 #rounds*1024*512//hidden_size
             name = f'_l_{layers}_hs_{hidden_size}'
-            train(llama_ref(hidden_size=hidden_size, layers=layers),"llama"+name,hidden_size*layers, train_subset=train_subset)
-            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet"+name,hidden_size*layers, train_subset=train_subset)
             BitLinear.default_stochastic_rounding = True
             train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_s"+name,hidden_size*layers, train_subset=train_subset)
             BitLinear.default_stochastic_rounding = False
+            train(llama_ref(hidden_size=hidden_size, layers=layers),"llama"+name,hidden_size*layers, train_subset=train_subset)
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet"+name,hidden_size*layers, train_subset=train_subset)
             
 for rounds in [1,32]:
     train_subset = rounds*1024*1024//64 

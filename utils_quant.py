@@ -114,11 +114,8 @@ class BitLinear(nn.Linear):
             else:
                 quant_weight = STEQuantize_weight_quant.apply(self.weight)
             self.quant_weight = None # quant_weight can not be reused during training
-        else:
-            if stochastic_rounding:
-                quant_weight = stochastic_weight_quant(self.weight)
-            else:
-                quant_input = activation_quant(input)
+        else:            
+            quant_input = activation_quant(input)
             # quantize weight only once for inference
             if self.quant_weight is None:
                 self.quant_weight = weight_quant(self.weight)
