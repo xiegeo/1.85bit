@@ -10,7 +10,7 @@ from train import train
 
 for rounds in [1,4,16]:
     for layers in [1,4]:
-        hs = [128,16,512]
+        hs = [128,512]
         if layers == 4:
             hs = [128]
         for hidden_size in hs:
@@ -19,10 +19,10 @@ for rounds in [1,4,16]:
             train_subset = rounds*1024*1024//64 #rounds*1024*512//hidden_size
             name = f'_l_{layers}_hs_{hidden_size}'
             BitLinear.default_stochastic_rounding = True
-            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_qw.1_s"+name,hidden_size*layers, train_subset=train_subset, training_mode='qw',lr=1e-4)
-            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_qw2_s"+name,hidden_size*layers, train_subset=train_subset, training_mode='qw',lr=2e-3)
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_qw.5_s"+name,hidden_size*layers, train_subset=train_subset, training_mode='qw',lr=5e-4)
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_qw.05_s"+name,hidden_size*layers, train_subset=train_subset, training_mode='qw',lr=5e-5)
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_qw.01_s"+name,hidden_size*layers, train_subset=train_subset, training_mode='qw',lr=1e-5)
             #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_s"+name,hidden_size*layers, train_subset=train_subset,)
-            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_sgd.1_s"+name,hidden_size*layers, train_subset=train_subset, training_mode='sgd', lr=1e-4)
             #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_sgd.5_s"+name,hidden_size*layers, train_subset=train_subset, training_mode='sgd', lr=5e-4)
             BitLinear.default_stochastic_rounding = False
             # train(llama_ref(hidden_size=hidden_size, layers=layers),"llama"+name,hidden_size*layers, train_subset=train_subset)
