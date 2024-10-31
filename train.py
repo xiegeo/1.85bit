@@ -9,7 +9,7 @@ from tokenization_bitnet import BitnetTokenizer
 from transformers import AutoTokenizer
 
 from models import tiny_stories_ref, bitnet_ref, llama_ref
-from utils_quant import BitLinear
+from utils_quant import BitLinear, quantize_weights
 
 device = torch.device("cpu")
 if torch.cuda.is_available():
@@ -54,14 +54,20 @@ def get_training_loader(train_subset, max_length):
     return torch.utils.data.DataLoader(tokenized_train_dataset, batch_size=batch_size, shuffle=True)
     #test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=64, shuffle=True)
 
-def train(model,model_name, cost, train_subset = 1024*16, max_length=64):
+def train(model,model_name, cost, train_subset = 1024*16, max_length=64, training_mode="ref", lr = 1e-3):
+    
+
+    
     # Initialize your model
     #model = AutoModel.from_config(AutoConfig.from_dict(bitnet_64_2))
     model = model.to(device)
     model_save_path = f'model_data/{model_name}_{max_length}/{time.time()}'
 
     # Prepare the optimizer
-    optimizer = torch.optim.AdamW(model.parameters())
+    if training_mode == "ref":
+        optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+    else:
+        optimizer = torch.optim.SGD(model.parameters(), lr=lr)
 
     loss_fct = torch.nn.CrossEntropyLoss(reduction="sum").to(device)
 
@@ -96,6 +102,8 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64):
                 "device": device.type,
                 "optimizer": optimizer.__class__.__name__,
                 "default_stochastic_rounding": BitLinear.default_stochastic_rounding,
+                "training_mode": training_mode,
+                "lr":lr,
                 })
 
     def sample_output(model, batch_idx=-1):
@@ -139,6 +147,8 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64):
             loss = calculate_loss(model, batch['input_ids'].to(device))
             loss.backward()
             optimizer.step()
+            if training_mode == "qw":
+                quantize_weights(model)
             
             current_loss = loss.item() / batch_size / max_length
             total_loss += current_loss

@@ -2,6 +2,23 @@ import math
 import torch
 from torch import nn
 
+printed_layers = set()
+
+def quantize_weights(model: nn.Module):
+    global printed_layers
+    for layer in model.modules():
+        if hasattr(layer, 'weight') and layer.weight is not None:
+            layer.weight.data = stochastic_weight_quant_no_scale(layer.weight.data)
+            if type(layer) not in printed_layers:
+                print(f"Layer {type(layer)} weights are quantized")
+                printed_layers.add(type(layer))
+        else:
+            if type(layer) not in printed_layers:
+                print(f"Layer {type(layer)} does not have weight")
+                printed_layers.add(type(layer))
+
+        
+    
 
 def weight_quant(weight, num_bits=1):
     dtype = weight.dtype
@@ -16,6 +33,13 @@ def stochastic_weight_quant(weight):
     s =  1 / weight.abs().mean().clamp(min=1e-5)
     result = (weight * s + torch.rand_like(weight)).floor().clamp(-1, 1) / s
     return result.type(dtype)
+
+def stochastic_weight_quant_no_scale(weight):
+    dtype = weight.dtype
+    weight = weight.float()
+    result = (weight + torch.rand_like(weight)).floor().clamp(-1, 1)
+    return result.type(dtype)
+
 
 def activation_quant(x, num_bits=8):
     dtype = x.dtype
