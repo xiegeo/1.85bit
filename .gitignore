@@ -161,14 +161,6 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 tokenized_train_dataset*
-tiny_stories_ref/
-tiny_stories_ref*
 wandb/
-tiny_stories_*
-bitnet_hs
-bitnet_hs_*
-bitnet_ref_*
 bitnet_train_tokens_*
-llama_hs_*
-bitnet_l_*
-llama_l_*
+model_data/

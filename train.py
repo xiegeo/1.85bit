@@ -1,4 +1,4 @@
-import time, os, json
+import time, os, json, socket
 import torch, wandb
 from datasets import load_dataset, load_from_disk
 from tqdm import tqdm
@@ -9,6 +9,7 @@ from tokenization_bitnet import BitnetTokenizer
 from transformers import AutoTokenizer
 
 from models import tiny_stories_ref, bitnet_ref, llama_ref
+from utils_quant import BitLinear
 
 device = torch.device("cpu")
 if torch.cuda.is_available():
@@ -57,7 +58,7 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64):
     # Initialize your model
     #model = AutoModel.from_config(AutoConfig.from_dict(bitnet_64_2))
     model = model.to(device)
-    model_save_path = f'{model_name}_{max_length}/{time.time()}'
+    model_save_path = f'model_data/{model_name}_{max_length}/{time.time()}'
 
     # Prepare the optimizer
     optimizer = torch.optim.AdamW(model.parameters())
@@ -94,7 +95,8 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64):
                 "model_name": model_name,
                 "device": device.type,
                 "optimizer": optimizer.__class__.__name__,
-                "host": os.name,
+                "host": socket.gethostname(),
+                "default_stochastic_rounding": BitLinear.default_stochastic_rounding,
                 })
 
     def sample_output(model, batch_idx=-1):
