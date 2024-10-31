@@ -95,7 +95,6 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64):
                 "model_name": model_name,
                 "device": device.type,
                 "optimizer": optimizer.__class__.__name__,
-                "host": socket.gethostname(),
                 "default_stochastic_rounding": BitLinear.default_stochastic_rounding,
                 })
 
