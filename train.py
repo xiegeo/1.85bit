@@ -23,9 +23,9 @@ tokenizer = BitnetTokenizer.from_pretrained(tokenizer_path)
 
 tokenizer.pad_token = tokenizer.eos_token # use eos_token as padding token for opened-ended generation
 
-batch_size = 8 # use the same batch size for consistent reporting
-if device.type == 'cpu':
-    batch_size = min(batch_size, 8)
+batch_size = 64 # use the same batch size for consistent reporting
+#if device.type == 'cpu':
+#    batch_size = min(batch_size, 8)
 
 def get_training_loader(train_subset, max_length):
     sfn = f"tokenized_train_dataset_{max_length}"
