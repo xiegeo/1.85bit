@@ -7,6 +7,13 @@ printed_layers = set()
 def quantize_weights(model: nn.Module):
     global printed_layers
     for layer in model.modules():
+        if type(layer) in [BitLinear]:
+            layer.weight.data = stochastic_weight_quant_no_scale(layer.weight.data)
+            if type(layer) not in printed_layers:
+                print(f"[Y] Layer {type(layer)} weights are quantized")
+                printed_layers.add(type(layer))
+    
+"""
         if hasattr(layer, 'do_not_quantize'):
             if type(layer) not in printed_layers:
                 print(f"[X] Layer {type(layer)} weights are blacklisted from quantization")
@@ -20,7 +27,7 @@ def quantize_weights(model: nn.Module):
             if type(layer) not in printed_layers:
                 print(f"[X] Layer {type(layer)} does not have weight")
                 printed_layers.add(type(layer))
-
+"""
         
     
 
