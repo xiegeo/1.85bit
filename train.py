@@ -1,5 +1,7 @@
 import time, os, json, socket
 import torch, wandb
+from torch.optim import Optimizer
+from torch.optim.lr_scheduler import _LRScheduler
 from datasets import load_dataset, load_from_disk
 from tqdm import tqdm
 from collections import deque
@@ -75,6 +77,53 @@ def SGDFun(lr=1e-3):
     fn.summery = f"SGD(lr={lr})"
     return fn
 
+class DynamicLearningRate(_LRScheduler):
+    def __init__(self, optimizer: Optimizer, lr_decay=0.5, decision_steps=200, lr_min=1e-6):
+        self.base_lrs = [group['lr'] for group in optimizer.param_groups]
+        self.current_lr = self.base_lrs[0]
+        self.lr_decay = lr_decay
+        self.decision_steps = decision_steps
+        self.lr_min = lr_min
+        self.last_loss = 0
+        self.deltas = [0,0]
+        self.loss_count = 0
+        super(DynamicLearningRate, self).__init__(optimizer)
+    
+    def lower_lose(self):
+        return max(self.current_lr*self.lr_decay, self.lr_min)
+    
+    def record_lose(self, loss):
+        if self.last_loss == 0:
+            self.last_loss = loss
+            return
+        delta = loss - self.last_loss
+        self.last_loss = loss
+        self.deltas[self.loss_count%2] += delta 
+        self.loss_count += 1
+        if self.loss_count == self.decision_steps:
+            if self.deltas[1]<self.deltas[0]<0:
+                self.update_lr(self.lower_lose())
+            else:
+                self.update_lr(self.current_lr)
+            
+    def update_lr(self, new_lr):
+        tqdm.write(f'update lr to {new_lr}')
+        self.current_lr = new_lr
+        self.deltas = [0,0]
+        self.loss_count = 0
+    
+    def get_lr(self):
+        if self.loss_count%2 == 0:
+            return [self.current_lr]
+        return [self.lower_lose()]
+    
+    def get_states(self):
+        return {
+            'current_lr':self.current_lr,
+            'delta_0':self.deltas[0],
+            'delta_1':self.deltas[1],
+        }
+
 def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimizer_function=AdamWFun(), QW=False):
     
     # Initialize your model
@@ -86,6 +135,8 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
     optimizer = optimizer_function(model.parameters())
 
     loss_fct = torch.nn.CrossEntropyLoss().to(device)
+    
+    scheduler = DynamicLearningRate(optimizer)
 
     def calculate_loss(model, input):
         output = model(input,
@@ -204,9 +255,15 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
                 'a2': recent_loss_100/100, 'a3': recent_loss_1000/1000, 'a4': recent_loss_10000/10000})
             tokens = (batch_idx+1)*batch_size*max_length
             compute_cost = tokens * cost
+            
+            scheduler.record_lose(current_loss)
+            
             wandb.log({'tokens':tokens,'batch_idx':batch_idx, 'compute_cost':compute_cost,
                        'loss': current_loss, 'avg_loss': avg_loss, 
-                       'recent_loss_100': recent_loss_100/100, 'recent_loss_1000': recent_loss_1000/1000, 'recent_loss_10000': recent_loss_10000/10000})
+                       'recent_loss_100': recent_loss_100/100, 'recent_loss_1000': recent_loss_1000/1000, 'recent_loss_10000': recent_loss_10000/10000,
+                       'scheduler':scheduler.get_states()})
+            
+            scheduler.step()
             
             if batch_idx % ((512*(2**n)//batch_size)) == 0:
                 n += 1
