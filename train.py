@@ -101,13 +101,14 @@ class DynamicLearningRate(_LRScheduler):
         self.deltas[self.loss_count%2] += delta 
         self.loss_count += 1
         if self.loss_count == self.decision_steps:
-            if self.deltas[1]<self.deltas[0]<0:
+            if self.deltas[1]<self.deltas[0] and self.deltas[1]<0:
                 self.update_lr(self.lower_lose())
             else:
                 self.update_lr(self.current_lr)
             
     def update_lr(self, new_lr):
-        tqdm.write(f'update lr to {new_lr}')
+        if new_lr != self.current_lr:
+            tqdm.write(f'update lr to {new_lr}')
         self.current_lr = new_lr
         self.deltas = [0,0]
         self.loss_count = 0

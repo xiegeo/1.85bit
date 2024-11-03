@@ -7,7 +7,7 @@ from models import tiny_stories_ref, bitnet_ref, llama_ref
 from utils_quant import BitLinear
 from train import train, AdamWFun, SGDFun
 
-for rounds in [0.01,1,4,16,64]:
+for rounds in [4,16,64]:
     train_subset = int(rounds*1024*1024//64)
     hidden_size = 512
     layers = 1
