@@ -57,10 +57,10 @@ def get_data_loader(dataset_type,train_subset, max_length, shuffle=True):
     return torch.utils.data.DataLoader(tokenized_dataset, batch_size=batch_size, shuffle=shuffle)
 
 def get_training_loader(train_subset, max_length):
-    return get_data_loader('train', train_subset, max_length)
+    return get_data_loader('train', train_subset, max_length, shuffle=True)
 
 def get_validation_loader(train_subset, max_length):
-    return get_data_loader('validation', train_subset, max_length)
+    return get_data_loader('validation', train_subset, max_length, shuffle=False)
 
 
 def AdamWFun(lr=1e-3, betas=(0.9, 0.999)):
