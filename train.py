@@ -27,36 +27,55 @@ batch_size = 64 # use the same batch size for consistent reporting
 #if device.type == 'cpu':
 #    batch_size = min(batch_size, 8)
 
-def get_training_loader(train_subset, max_length):
-    sfn = f"tokenized_train_dataset_{max_length}"
+
+
+def get_data_loader(dataset_type,train_subset, max_length, shuffle=True):
+    sfn = f"tokenized_{dataset_type}_dataset_{max_length}"
     if tokenizer_path == "1bitLLM/bitnet_b1_58-large":
-        sfn = f"bitnet_train_tokens_{max_length}"
+        sfn = f"bitnet_{dataset_type}_tokens_{max_length}"
     if not os.path.exists(sfn) and os.path.exists("../"+sfn): # find the file if it's in the parent directory
         sfn = "../"+sfn
     if os.path.exists(sfn):
-        tokenized_train_dataset_full = load_from_disk(sfn)
+        tokenized_dataset_full = load_from_disk(sfn)
     else:
         # use the TinyStories dataset
         dataset = load_dataset('roneneldan/TinyStories')
         print(dataset.keys())
-        train_dataset = dataset['train']
-        #test_dataset = dataset['validation']
-        tokenized_train_dataset_full = train_dataset.map(
+        if dataset_type not in dataset:
+            raise ValueError(f"dataset type {dataset_type} not found in dataset {dataset.keys()}")
+        sub_dataset = dataset[dataset_type]
+        tokenized_dataset_full = sub_dataset.map(
             lambda x: tokenizer(
                 x['text'], padding="max_length", max_length=max_length, truncation=True, return_tensors='pt'
             ), batched=True)
-        tokenized_train_dataset_full.save_to_disk(sfn)
-    tokenized_train_dataset_full.set_format(type='torch', columns=['input_ids', 'attention_mask'])
-    print(f"use training dataset with max_length={max_length}, train_subset={train_subset}, number of tokens={max_length*train_subset}")
-    tokenized_train_dataset = torch.utils.data.Subset(tokenized_train_dataset_full, indices=range(train_subset))
+        tokenized_dataset_full.save_to_disk(sfn)
+    tokenized_dataset_full.set_format(type='torch', columns=['input_ids', 'attention_mask'])
+    print(f"use {dataset_type} dataset with max_length={max_length}, train_subset={train_subset}, number of tokens={max_length*train_subset}")
+    tokenized_dataset = torch.utils.data.Subset(tokenized_dataset_full, indices=range(train_subset))
 
     # Define your dataloaders
-    return torch.utils.data.DataLoader(tokenized_train_dataset, batch_size=batch_size, shuffle=True)
-    #test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=64, shuffle=True)
+    return torch.utils.data.DataLoader(tokenized_dataset, batch_size=batch_size, shuffle=shuffle)
 
-def train(model,model_name, cost, train_subset = 1024*16, max_length=64, training_mode="ref", lr = 1e-3):
-    
+def get_training_loader(train_subset, max_length):
+    return get_data_loader('train', train_subset, max_length)
 
+def get_validation_loader(train_subset, max_length):
+    return get_data_loader('validation', train_subset, max_length)
+
+
+def AdamWFun(lr=1e-3, betas=(0.9, 0.999)):
+    def fn(params):
+        torch.optim.AdamW(params, lr=lr, betas=betas)
+    fn.summery = f"AdamW(lr={lr}, betas={betas})"
+    return fn
+
+def SGDFun(lr=1e-3):
+    def fn(params):
+        torch.optim.SGD(params, lr=lr)
+    fn.summery = f"SGD(lr={lr})"
+    return fn
+
+def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimizer_function=AdamWFun(), QW=False):
     
     # Initialize your model
     #model = AutoModel.from_config(AutoConfig.from_dict(bitnet_64_2))
@@ -64,22 +83,9 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, trainin
     model_save_path = f'model_data/{model_name}_{max_length}/{time.time()}'
 
     # Prepare the optimizer
-    if training_mode == "ref":
-        optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    else:
-        optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+    optimizer = optimizer_function(model.parameters())
 
-    loss_fct = torch.nn.CrossEntropyLoss(reduction="sum").to(device)
-
-    def calculate_loss_old(model, input):
-        output = model(input,
-                        use_cache=False,
-                        output_hidden_states=False,
-                        output_attentions=False)[0]
-        shift_logits = output[:, :-1, :].contiguous()
-        shift_labels = input[:, 1:]
-        loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-        return loss
+    loss_fct = torch.nn.CrossEntropyLoss().to(device)
 
     def calculate_loss(model, input):
         output = model(input,
@@ -90,6 +96,8 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, trainin
         shift_labels = input[:, 1:]
         loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.reshape(-1))
         return loss
+    
+    validation_size = (10000//batch_size) * batch_size
 
     wandb.init(project="npl185", name=model_name,# mode="offline",
             config={
@@ -97,16 +105,20 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, trainin
                 "tokenizer_max_length": max_length,
                 "train_subset": train_subset,
                 "train_batch_size": batch_size, 
+                "validation_size": validation_size,
                 "model_save_path": model_save_path,
                 "model_name": model_name,
                 "device": device.type,
                 "optimizer": optimizer.__class__.__name__,
+                "optimizer_summary": optimizer_function.summery,
                 "default_stochastic_rounding": BitLinear.default_stochastic_rounding,
-                "training_mode": training_mode,
-                "lr":lr,
+                "quantize_training_weights": QW
                 })
-
-    def sample_output(model, batch_idx=-1):
+    validation_loader = None
+    if validation_size > 0:
+        validation_loader = get_validation_loader(validation_size,max_length)
+        
+    def sample_output(model, batch_idx=-1, validation_size=0):
         return_to_train = False
         if model.training:
             model.eval()
@@ -117,9 +129,35 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, trainin
                 outputs = model.generate(**inputs, max_length=max_length)
                 decoded = tokenizer.decode(outputs[0], skip_special_tokens=True)
                 print(json.dumps(decoded))
-                wandb.log({'batch_idx':batch_idx, 'text': text, 'story': json.dumps(decoded)})
+                wandb.log({'batch_idx':batch_idx, 'text': text, 'story': json.dumps(decoded), "stochastic_rounding": BitLinear.default_stochastic_rounding})
+            if validation_size > 0:
+                total_loss = 0.0
+                batches = 0
+                progress_bar = tqdm(validation_loader, position=0)
+                for _, batch in enumerate(progress_bar):
+                    loss = calculate_loss(model, batch['input_ids'].to(device))
+                    total_loss += loss.item()
+                    batches += 1
+                    if batches * batch_size >= validation_size:
+                        break
+                    progress_bar.set_postfix({'validation_loss': total_loss / batches})
+                avg_loss = total_loss / batches
+                print(f"Validation Loss: {avg_loss}, validation_size={batches*batch_size}")
+                wandb.log({'batch_idx':batch_idx, 'validation_loss': avg_loss, 'validation_size':batches*batch_size, "stochastic_rounding": BitLinear.default_stochastic_rounding})
         if return_to_train:
             model.train()
+
+    def sample_output2(model, batch_idx=-1, validation_size=0):
+        # uncomment after confirming that rounding does nothing when weights are already quantized
+        # if QW: # rounding does nothing when weights are already quantized
+        #    sample_output(model, batch_idx, validation_size)
+        #    return
+        old_rounding = BitLinear.default_stochastic_rounding
+        BitLinear.default_stochastic_rounding = False
+        sample_output(model, batch_idx, validation_size)
+        BitLinear.default_stochastic_rounding = True
+        sample_output(model, batch_idx, validation_size)
+        BitLinear.default_stochastic_rounding = old_rounding
 
     # Train the model
     model.train()
@@ -147,10 +185,10 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, trainin
             loss = calculate_loss(model, batch['input_ids'].to(device))
             loss.backward()
             optimizer.step()
-            if training_mode == "qw":
+            if QW:
                 quantize_weights(model)
             
-            current_loss = loss.item() / batch_size / max_length
+            current_loss = loss.item() / max_length
             total_loss += current_loss
             last_removed = recent_losses[0]
             recent_losses.append(current_loss)
@@ -171,14 +209,14 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, trainin
             
             if batch_idx % (32*(2**n)) == 0:
                 n += 1
-                sample_output(model, batch_idx)
+                sample_output2(model, batch_idx, min(batch_idx, validation_size))
             
         print(f"Epoch {epoch + 1} completed. Average Loss: {avg_loss}")
     # Save the model
     model.save_pretrained(f'{model_save_path}/finish')
 
     print('Finished Training')
-    sample_output(model)
+    sample_output(model,-1,validation_size)
     wandb.finish()
 
 # only run if main
