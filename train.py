@@ -98,6 +98,8 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
         return loss
     
     validation_size = (10000//batch_size) * batch_size
+    if device.type == 'cpu':
+        validation_size = (100//batch_size) * batch_size
 
     wandb.init(project="npl185", name=model_name,# mode="offline",
             config={
@@ -148,10 +150,9 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
             model.train()
 
     def sample_output2(model, batch_idx=-1, validation_size=0):
-        # uncomment after confirming that rounding does nothing when weights are already quantized
-        # if QW: # rounding does nothing when weights are already quantized
-        #    sample_output(model, batch_idx, validation_size)
-        #    return
+        if QW: # rounding does nothing when weights are already quantized
+            sample_output(model, batch_idx, validation_size)
+            return
         old_rounding = BitLinear.default_stochastic_rounding
         BitLinear.default_stochastic_rounding = False
         sample_output(model, batch_idx, validation_size)
