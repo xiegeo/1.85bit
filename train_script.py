@@ -16,9 +16,9 @@ for rounds in [1]:
             #if rounds > hidden_size//16:
             #    continue
             train_subset = rounds*1024*1024//64 #rounds*1024*512//hidden_size
-            name = f'_lr{lr}_L{layers}_hs_{hidden_size}'
+            name = f'_lr{lr}_L{layers}_hs{hidden_size}'
             BitLinear.default_stochastic_rounding = True
-            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_s_sgl_qw"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=SGDFun(lr=lr), QW=True)
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_s_sgd_qw"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=SGDFun(lr=lr), QW=True)
             #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_s_sgd"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=SGDFun(lr=lr), QW=False)
             #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_s_qw"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QW=True)
             #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_s"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QW=False)
@@ -33,10 +33,10 @@ for rounds in [1,4,16,64]:
             #if rounds > hidden_size//16:
             #    continue
             train_subset = rounds*1024*1024//64 #rounds*1024*512//hidden_size
-            name = f'_l_{layers}_hs_{hidden_size}'
+            name = f'_lr{lr}_L{layers}_hs{hidden_size}'
             BitLinear.default_stochastic_rounding = True
             #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_qwl"+name,hidden_size*layers, train_subset=train_subset, training_mode='qw',lr=1e-3)
-            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_qwl_s"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=SGDFun(lr=lr), QW=True)
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_sgd_qw_s"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=SGDFun(lr=lr), QW=True)
             train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_sgd_s"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=SGDFun(lr=lr), QW=False)
             #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_s"+name,hidden_size*layers, train_subset=train_subset,)
             #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_sgd.5_s"+name,hidden_size*layers, train_subset=train_subset, training_mode='sgd', lr=5e-4)
