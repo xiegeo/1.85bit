@@ -78,11 +78,12 @@ def SGDFun(lr=1e-3):
     return fn
 
 class DynamicLearningRate(_LRScheduler):
-    def __init__(self, optimizer: Optimizer, lr_decay=0.5, decision_steps=200, lr_min=1e-6):
+    def __init__(self, optimizer: Optimizer, lr_decay=0.99, decision_steps=20, lr_min=1e-6):
         self.base_lrs = [group['lr'] for group in optimizer.param_groups]
         self.current_lr = self.base_lrs[0]
         self.lr_decay = lr_decay
         self.decision_steps = decision_steps
+        self.lr_max = self.current_lr
         self.lr_min = lr_min
         self.last_loss = 0
         self.deltas = [0,0]
@@ -91,6 +92,9 @@ class DynamicLearningRate(_LRScheduler):
     
     def lower_lose(self):
         return max(self.current_lr*self.lr_decay, self.lr_min)
+    
+    def higher_lose(self):
+        return min(self.current_lr/self.lr_decay, self.lr_max)
     
     def record_lose(self, loss):
         if self.last_loss == 0:
@@ -101,10 +105,10 @@ class DynamicLearningRate(_LRScheduler):
         self.deltas[self.loss_count%2] += delta 
         self.loss_count += 1
         if self.loss_count == self.decision_steps:
-            if self.deltas[1]<self.deltas[0] and self.deltas[1]<0:
+            if self.deltas[1]<self.deltas[0]:
                 self.update_lr(self.lower_lose())
             else:
-                self.update_lr(self.current_lr)
+                self.update_lr(self.higher_lose())
             
     def update_lr(self, new_lr):
         if new_lr != self.current_lr:
@@ -115,7 +119,7 @@ class DynamicLearningRate(_LRScheduler):
     
     def get_lr(self):
         if self.loss_count%2 == 0:
-            return [self.current_lr]
+            return [self.higher_lose()]
         return [self.lower_lose()]
     
     def get_states(self):
