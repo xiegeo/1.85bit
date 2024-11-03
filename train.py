@@ -23,7 +23,7 @@ tokenizer = BitnetTokenizer.from_pretrained(tokenizer_path)
 
 tokenizer.pad_token = tokenizer.eos_token # use eos_token as padding token for opened-ended generation
 
-batch_size = 64 # use the same batch size for consistent reporting
+batch_size = 8 # use the same batch size for consistent reporting
 #if device.type == 'cpu':
 #    batch_size = min(batch_size, 8)
 
@@ -65,13 +65,13 @@ def get_validation_loader(train_subset, max_length):
 
 def AdamWFun(lr=1e-3, betas=(0.9, 0.999)):
     def fn(params):
-        torch.optim.AdamW(params, lr=lr, betas=betas)
+        return torch.optim.AdamW(params, lr=lr, betas=betas)
     fn.summery = f"AdamW(lr={lr}, betas={betas})"
     return fn
 
 def SGDFun(lr=1e-3):
     def fn(params):
-        torch.optim.SGD(params, lr=lr)
+        return torch.optim.SGD(params, lr=lr)
     fn.summery = f"SGD(lr={lr})"
     return fn
 
@@ -128,7 +128,7 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
                 inputs = tokenizer(text, return_tensors='pt').to(device)
                 outputs = model.generate(**inputs, max_length=max_length)
                 decoded = tokenizer.decode(outputs[0], skip_special_tokens=True)
-                print(json.dumps(decoded))
+                tqdm.write(json.dumps(decoded))
                 wandb.log({'batch_idx':batch_idx, 'text': text, 'story': json.dumps(decoded), "stochastic_rounding": BitLinear.default_stochastic_rounding})
             if validation_size > 0:
                 total_loss = 0.0
@@ -142,7 +142,7 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
                         break
                     progress_bar.set_postfix({'validation_loss': total_loss / batches})
                 avg_loss = total_loss / batches
-                print(f"Validation Loss: {avg_loss}, validation_size={batches*batch_size}")
+                progress_bar.write(f"Validation Loss: {avg_loss}, validation_size={batches*batch_size}, batch_idx={batch_idx}, stochastic_rounding={BitLinear.default_stochastic_rounding}")
                 wandb.log({'batch_idx':batch_idx, 'validation_loss': avg_loss, 'validation_size':batches*batch_size, "stochastic_rounding": BitLinear.default_stochastic_rounding})
         if return_to_train:
             model.train()
@@ -188,7 +188,7 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
             if QW:
                 quantize_weights(model)
             
-            current_loss = loss.item() / max_length
+            current_loss = loss.item()
             total_loss += current_loss
             last_removed = recent_losses[0]
             recent_losses.append(current_loss)
@@ -207,16 +207,16 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
                        'loss': current_loss, 'avg_loss': avg_loss, 
                        'recent_loss_100': recent_loss_100/100, 'recent_loss_1000': recent_loss_1000/1000, 'recent_loss_10000': recent_loss_10000/10000})
             
-            if batch_idx % (32*(2**n)) == 0:
+            if batch_idx % ((512*(2**n)//batch_size)) == 0:
                 n += 1
-                sample_output2(model, batch_idx, min(batch_idx, validation_size))
+                sample_output2(model, batch_idx, min(batch_idx*batch_size//8, validation_size))
             
         print(f"Epoch {epoch + 1} completed. Average Loss: {avg_loss}")
     # Save the model
     model.save_pretrained(f'{model_save_path}/finish')
 
     print('Finished Training')
-    sample_output(model,-1,validation_size)
+    sample_output2(model,-1,validation_size)
     wandb.finish()
 
 # only run if main

@@ -8,6 +8,23 @@ from utils_quant import BitLinear
 from train import train, AdamWFun, SGDFun
 
 
+for rounds in [1,4,16]:
+    for layers in [1]:
+        hidden_size = 128
+        lrs = [1e-3, 1e-2, 1e-1]
+        for lr in lrs:
+            #if rounds > hidden_size//16:
+            #    continue
+            train_subset = rounds*1024*1024//64 #rounds*1024*512//hidden_size
+            name = f'lr_{lr}_l_{layers}_hs_{hidden_size}'
+            BitLinear.default_stochastic_rounding = True
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_s_sgl_qw"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=SGDFun(lr=lr), QW=True)
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_s_sgd"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=SGDFun(lr=lr), QW=False)
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_s_qw"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QW=True)
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_s"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QW=False)
+            BitLinear.default_stochastic_rounding = False
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QW=False)
+            
 for rounds in [1,4,16,64]:
     for layers in [1]:
         hs = [128,512]
