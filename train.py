@@ -78,7 +78,7 @@ def SGDFun(lr=1e-3):
     return fn
 
 class DynamicLearningRate(_LRScheduler):
-    def __init__(self, optimizer: Optimizer, lr_decay=0.1, slow_start=1, swap_width=100, swaps=5, lr_min=1e-6):
+    def __init__(self, optimizer: Optimizer, lr_decay=0.3, slow_start=1, swap_width=100, swaps=5, lr_min=1e-6):
         self.base_lrs = [group['lr'] for group in optimizer.param_groups]
         self.lr_max = self.base_lrs[0] 
         self.current_lr = self.lr_max * slow_start
@@ -100,7 +100,7 @@ class DynamicLearningRate(_LRScheduler):
         return max(self.current_lr*self.lr_decay, self.lr_min)
 
     def lose_index(self):
-        return (self.loss_count//self.swap_width)%2
+        return (self.loss_count//self.swap_width +1)%2 # lower goes first, test for plateau
     
     def lose_weight(self):
         return (self.loss_count%self.swap_width+1)*self.loss_weight_scale
@@ -122,7 +122,7 @@ class DynamicLearningRate(_LRScheduler):
         self.loss_count = 0
     
     def get_lr(self):
-        if self.lose_index() == 0:
+        if self.lose_index() == 0: 
             return [self.higher_lose()]
         return [self.lower_lose()]
     
