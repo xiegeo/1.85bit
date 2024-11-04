@@ -78,7 +78,7 @@ def SGDFun(lr=1e-3):
     return fn
 
 class DynamicLearningRate(_LRScheduler):
-    def __init__(self, optimizer: Optimizer, lr_decay=0.3, slow_start=1, swap_width=100, swaps=5, lr_min=1e-6):
+    def __init__(self, optimizer: Optimizer, lr_decay=0.5, slow_start=1, swap_width=500, swaps=1, lr_min=1e-6):
         self.base_lrs = [group['lr'] for group in optimizer.param_groups]
         self.lr_max = self.base_lrs[0] 
         self.current_lr = self.lr_max * slow_start
