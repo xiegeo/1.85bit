@@ -11,7 +11,7 @@ for rounds in [4,16,64]:
     train_subset = int(rounds*1024*1024//64)
     hidden_size = 512
     layers = 1
-    lrs = [0.2, 0.1]
+    lrs = [0.2, 0.02]
     for lr in lrs:
         name = f'_auto_lr{lr}_L{layers}_hs{hidden_size}'
         train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_sgd_qw"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=SGDFun(lr=lr), QW=True)
@@ -19,7 +19,7 @@ for rounds in [4,16,64]:
     lrs = [0.003, 0.01]
     for lr in lrs:
         name = f'_auto_lr{lr}_L{layers}_hs{hidden_size}'
-        train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QW=False)
+        #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QW=False)
 
 """
 for rounds in [1,16,64]:
