@@ -125,6 +125,7 @@ class STEQuantize_stochastic_weight_quant(torch.autograd.Function):
 
 class BitLinear(nn.Linear):
     default_stochastic_rounding = False
+    QW = False
 
     def __init__(self,
             *kargs,
@@ -144,7 +145,9 @@ class BitLinear(nn.Linear):
             stochastic_rounding = self.default_stochastic_rounding
         if self.training:
             quant_input = STEQuantize_activation_quant_8.apply(input)
-            if stochastic_rounding:
+            if BitLinear.QW:
+                quant_weight = self.weight
+            elif stochastic_rounding:
                 quant_weight = STEQuantize_stochastic_weight_quant.apply(self.weight)
             else:
                 quant_weight = STEQuantize_weight_quant.apply(self.weight)
