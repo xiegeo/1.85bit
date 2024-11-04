@@ -78,34 +78,38 @@ def SGDFun(lr=1e-3):
     return fn
 
 class DynamicLearningRate(_LRScheduler):
-    def __init__(self, optimizer: Optimizer, lr_decay=0.1, slow_start=1, decision_steps=10000, lr_min=1e-6):
+    def __init__(self, optimizer: Optimizer, lr_decay=0.1, slow_start=1, swap_width=100, swaps=5, lr_min=1e-6):
         self.base_lrs = [group['lr'] for group in optimizer.param_groups]
         self.lr_max = self.base_lrs[0] 
         self.current_lr = self.lr_max * slow_start
         self.lr_decay = lr_decay
-        self.decision_steps = decision_steps
+        self.swap_width = swap_width
+        self.swaps = swaps
+        self.decision_steps = 2 * swap_width * swaps
         self.lr_min = lr_min
         self.last_loss = 0
-        self.deltas = [0,0]
+        self.loss_avg = [0,0]
         self.loss_count = 0
+        self.loss_weight_scale = 2/((self.swap_width+1)*self.swap_width*self.swaps) # 1/(1+2+3+...+swap_width)*swaps
         super(DynamicLearningRate, self).__init__(optimizer)
-    
-    def lower_lose(self):
-        return max(self.current_lr*self.lr_decay, self.lr_min)
     
     def higher_lose(self):
         return min(self.current_lr/self.lr_decay, self.lr_max)
     
+    def lower_lose(self):
+        return max(self.current_lr*self.lr_decay, self.lr_min)
+
+    def lose_index(self):
+        return (self.loss_count//self.swap_width)%2
+    
+    def lose_weight(self):
+        return (self.loss_count%self.swap_width+1)*self.loss_weight_scale
+    
     def record_lose(self, loss):
-        if self.last_loss == 0:
-            self.last_loss = loss
-            return
-        delta = loss - self.last_loss
-        self.last_loss = loss
-        self.deltas[self.loss_count%2] += delta 
+        self.loss_avg[self.lose_index()] += loss * self.lose_weight()
         self.loss_count += 1
         if self.loss_count == self.decision_steps:
-            if self.deltas[1]<self.deltas[0]:
+            if self.loss_avg[1]<self.loss_avg[0]:
                 self.update_lr(self.lower_lose())
             else:
                 self.update_lr(self.higher_lose())
@@ -114,19 +118,19 @@ class DynamicLearningRate(_LRScheduler):
         if new_lr != self.current_lr:
             tqdm.write(f'update lr to {new_lr}')
         self.current_lr = new_lr
-        self.deltas = [0,0]
+        self.loss_avg = [0,0]
         self.loss_count = 0
     
     def get_lr(self):
-        if self.loss_count%2 == 0:
+        if self.lose_index() == 0:
             return [self.higher_lose()]
         return [self.lower_lose()]
     
     def get_states(self):
         return {
             'current_lr':self.current_lr,
-            'delta_0':self.deltas[0],
-            'delta_1':self.deltas[1],
+            'loss_avg_0':self.loss_avg[0],
+            'loss_avg_1':self.loss_avg[1],
         }
 
 def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimizer_function=AdamWFun(), QW=False):
