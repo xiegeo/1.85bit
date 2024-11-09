@@ -11,7 +11,7 @@ for rounds in [1,4,16]:
     train_subset = int(rounds*1024*1024//64)
     hidden_sizes = [128, 512]
     layers = 1
-    lrs = [0.001, 0.01,0.0001]
+    lrs = [0.003,0.00003]
     for hidden_size in hidden_sizes:
         for lr in lrs:
             name = f'_lr{lr}_L{layers}_hs{hidden_size}'
