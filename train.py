@@ -78,9 +78,12 @@ def SGDFun(lr=1e-3):
     return fn
 
 class DynamicLearningRate(_LRScheduler):
-    def __init__(self, optimizer: Optimizer, lr_decay=0.8, lr_ratio=0.8, slow_start=1, swap_width=500, swaps=1, lr_min=1e-6):
+    def __init__(self, optimizer: Optimizer, disable=True, lr_decay=0.8, lr_ratio=0.8, slow_start=1, swap_width=500, swaps=1, lr_min=1e-6):
         self.base_lrs = [group['lr'] for group in optimizer.param_groups]
         self.lr_max = self.base_lrs[0] 
+        self.disable = disable # always return the base learning rate, but still report states for consistency.
+        if disable:
+            lr_min = self.lr_max
         self.current_lr = self.lr_max * slow_start
         self.lr_decay = lr_decay # how fast the learning rate adjusts
         self.lr_ratio = lr_ratio # when trying 2 different learning rates, how far apart are they from the current learning rate
@@ -142,6 +145,8 @@ class DynamicLearningRate(_LRScheduler):
         self.loss_count = 0
     
     def get_lr(self):
+        if self.disable:
+            return self.base_lrs
         if self.lose_index() == 0: 
             return [self.higher_ratio()]
         return [self.lower_ratio()]
