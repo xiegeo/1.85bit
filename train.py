@@ -11,7 +11,7 @@ from tokenization_bitnet import BitnetTokenizer
 from transformers import AutoTokenizer
 
 from models import tiny_stories_ref, bitnet_ref, llama_ref
-from utils_quant import BitLinear, quantize_weights
+from utils_quant import BitLinear, quantize_weights, QF_noop, QF_3
 
 device = torch.device("cpu")
 if torch.cuda.is_available():
@@ -160,9 +160,9 @@ class DynamicLearningRate(_LRScheduler):
             'last_avg':self.last_avg,
         }
 
-def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimizer_function=AdamWFun(), QW=False):
+def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimizer_function=AdamWFun(), QF=QF_noop):
     
-    BitLinear.QW = QW
+    BitLinear.QW = (QF == QF_3)
     
     # Initialize your model
     #model = AutoModel.from_config(AutoConfig.from_dict(bitnet_64_2))
@@ -188,7 +188,7 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
     
     validation_size = (10000//batch_size) * batch_size
     if device.type == 'cpu':
-        validation_size = (100//batch_size) * batch_size
+        validation_size = (1000//batch_size) * batch_size
 
     wandb.init(project="npl185", name=model_name,# mode="offline",
             config={
@@ -203,7 +203,7 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
                 "optimizer": optimizer.__class__.__name__,
                 "optimizer_summary": optimizer_function.summery,
                 "default_stochastic_rounding": BitLinear.default_stochastic_rounding,
-                "quantize_training_weights": QW
+                "quantize_training_weights": QF.__name__,
                 })
     validation_loader = None
     if validation_size > 0:
@@ -244,7 +244,7 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
             model.train()
 
     def sample_output2(model, batch_idx=-1, validation_size=0):
-        if QW: # rounding does nothing when weights are already quantized
+        if QF == QF_3: # rounding does nothing when weights are already quantized
             sample_output(model, batch_idx, validation_size)
             return
         old_rounding = BitLinear.default_stochastic_rounding
@@ -280,8 +280,8 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
             loss = calculate_loss(model, batch['input_ids'].to(device))
             loss.backward()
             optimizer.step()
-            if QW:
-                quantize_weights(model)
+            
+            quantize_weights(model, qf=QF)
             
             current_loss = loss.item()
             total_loss += current_loss

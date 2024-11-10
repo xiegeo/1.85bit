@@ -2,34 +2,33 @@ import math
 import torch
 from torch import nn
 
-printed_layers = set()
+printed_layers = set()        
 
-def quantize_weights(model: nn.Module):
+def QF_noop(weight):
+    return weight
+    
+def QF_3(weight):
+    return stochastic_weight_quant_no_scale(weight)
+
+def QF_8b(weight): # quantize the weight to 8 bits using the same algorithm as activation_quant_8, but with stochastic rounding
+    dtype = weight.dtype
+    x = weight.float()
+    Qn = -2 ** (8 - 1)
+    Qp = 2 ** (8 - 1) - 1
+    s = Qp / x.abs().max(dim=-1, keepdim=True).values.clamp(min=1e-5)
+    result = (x * + torch.rand_like(weight)).floor().clamp(Qn, Qp) / s
+    return result.type(dtype)   
+
+def quantize_weights(model: nn.Module, qf):
+    if qf == QF_noop:
+        return
     global printed_layers
     for layer in model.modules():
         if type(layer) in [BitLinear]:
-            layer.weight.data = stochastic_weight_quant_no_scale(layer.weight.data)
+            layer.weight.data = qf(layer.weight.data)
             if type(layer) not in printed_layers:
                 print(f"[Y] Layer {type(layer)} weights are quantized")
                 printed_layers.add(type(layer))
-    
-"""
-        if hasattr(layer, 'do_not_quantize'):
-            if type(layer) not in printed_layers:
-                print(f"[X] Layer {type(layer)} weights are blacklisted from quantization")
-                printed_layers.add(type(layer))
-        elif hasattr(layer, 'weight') and layer.weight is not None:
-            layer.weight.data = stochastic_weight_quant_no_scale(layer.weight.data)
-            if type(layer) not in printed_layers:
-                print(f"[Y] Layer {type(layer)} weights are quantized")
-                printed_layers.add(type(layer))
-        else:
-            if type(layer) not in printed_layers:
-                print(f"[X] Layer {type(layer)} does not have weight")
-                printed_layers.add(type(layer))
-"""
-        
-    
 
 def weight_quant(weight, num_bits=1):
     dtype = weight.dtype
@@ -69,6 +68,8 @@ def activation_quant_8(x):
     s = Qp / x.abs().max(dim=-1, keepdim=True).values.clamp(min=1e-5)
     result = (x * s).round().clamp(Qn, Qp) / s
     return result.type(dtype)   
+
+
 
 class BitLinearOLD(nn.Linear): # original code, not in use
 
