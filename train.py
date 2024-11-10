@@ -235,6 +235,11 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
                 avg_loss = total_loss / batches
                 progress_bar.write(f"Validation Loss: {avg_loss}, validation_size={batches*batch_size}, batch_idx={batch_idx}, stochastic_rounding={BitLinear.default_stochastic_rounding}")
                 wandb.log({'batch_idx':batch_idx, 'validation_loss': avg_loss, 'validation_size':batches*batch_size, "stochastic_rounding": BitLinear.default_stochastic_rounding})
+                key = "round"
+                if BitLinear.default_stochastic_rounding:
+                    key = "stochastic"
+                wandb.log({'batch_idx':batch_idx, f'validation_loss_'+key: avg_loss, 'validation_size':batches*batch_size, "stochastic_rounding": BitLinear.default_stochastic_rounding})
+
         if return_to_train:
             model.train()
 
