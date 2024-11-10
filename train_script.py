@@ -7,6 +7,21 @@ from models import tiny_stories_ref, bitnet_ref, llama_ref
 from utils_quant import BitLinear
 from train import train, AdamWFun, SGDFun
 
+
+for rounds in [64]:
+    train_subset = int(rounds*1024*1024//64)
+    hidden_sizes = [128]
+    layers = 1
+    lrs = [0.001,0.002,0.005]
+    for hidden_size in hidden_sizes:
+        for lr in lrs:
+            name = f'_lr{lr}_L{layers}_hs{hidden_size}'
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_qw"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QW=True)
+            #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QW=False)
+            #train(llama_ref(hidden_size=hidden_size, layers=layers),"llama"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr))
+
+
+"""
 for rounds in [64]:
     train_subset = int(rounds*1024*1024//64)
     hidden_sizes = [128, 512]
@@ -18,7 +33,7 @@ for rounds in [64]:
             train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_qw"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QW=True)
             #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QW=False)
             #train(llama_ref(hidden_size=hidden_size, layers=layers),"llama"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr))
-
+"""
 
 """
 for rounds in [1,16,64]:
