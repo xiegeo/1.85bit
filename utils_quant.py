@@ -155,7 +155,7 @@ class BitLinear(nn.Linear):
         else:            
             quant_input = activation_quant(input)
             if stochastic_rounding:
-                quant_weight = weight_quant(self.weight)
+                quant_weight = stochastic_weight_quant(self.weight)
             elif self.quant_weight is None:
                 # quantize weight only once for inference, if it is stable
                 self.quant_weight = weight_quant(self.weight)
