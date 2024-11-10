@@ -304,7 +304,8 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
             wandb.log({'tokens':tokens,'batch_idx':batch_idx, 'compute_cost':compute_cost,
                        'loss': current_loss, 'avg_loss': avg_loss, 
                        'recent_loss_100': recent_loss_100/100, 'recent_loss_1000': recent_loss_1000/1000, 'recent_loss_10000': recent_loss_10000/10000,
-                       'scheduler':scheduler.get_states()})
+                       'scheduler':scheduler.get_states(),
+                       "stochastic_rounding": BitLinear.default_stochastic_rounding})
             
             scheduler.step()
             
