@@ -4,12 +4,12 @@
 #!python train.py
 
 from models import tiny_stories_ref, bitnet_ref, llama_ref
-from utils_quant import BitLinear, quantize_weights, QF_noop, QF_3, QF_8b
+from utils_quant import BitLinear, quantize_weights, QF_noop, QF_3, QF_2b, QF_3b, QF_4b, QF_8b
 
 from train import train, AdamWFun, SGDFun
 
 
-for rounds in [0.1, 64]:
+for rounds in [4, 64]:
     train_subset = int(rounds*1024*1024//64)
     hidden_sizes = [128]
     layers = 1
@@ -19,8 +19,15 @@ for rounds in [0.1, 64]:
             name = f'_lr{lr}_L{layers}_hs{hidden_size}'
             BitLinear.default_stochastic_rounding = True
             train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bs8b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_8b)
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bs4b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_4b)
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bs3b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_3b)
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bs2b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_2b)
+
             BitLinear.default_stochastic_rounding = False
             train(bitnet_ref(hidden_size=hidden_size, layers=layers),"br8b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_8b)
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"br4b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_4b)
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"br3b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_3b)
+            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"br2b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_2b)
 
             #BitLinear.default_stochastic_rounding = True
             #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bitnet_s"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QW=False)
