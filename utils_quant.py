@@ -15,7 +15,7 @@ def QF_8b(weight):
     x = weight.float()
     Qn = -2 ** (8 - 1)
     Qp = 2 ** (8 - 1) - 1
-    s = Qp / x.abs().max(dim=-1, keepdim=True).values.clamp(min=1e-5)
+    s = Qp #/ x.abs().max(dim=-1, keepdim=True).values.clamp(min=1e-5)
     result = (x * s + torch.rand_like(weight)).floor().clamp(Qn, Qp) / s
     return result.type(dtype)   
 
@@ -24,7 +24,7 @@ def QF_4b(weight):
     x = weight.float()
     Qn = -2 ** (4 - 1)
     Qp = 2 ** (4 - 1) - 1
-    s = Qp / x.abs().max(dim=-1, keepdim=True).values.clamp(min=1e-5)
+    s = Qp #/ x.abs().max(dim=-1, keepdim=True).values.clamp(min=1e-5)
     result = (x * s + torch.rand_like(weight)).floor().clamp(Qn, Qp) / s
     return result.type(dtype)
 
@@ -33,7 +33,7 @@ def QF_3b(weight):
     x = weight.float()
     Qn = -2 ** (2 - 1)
     Qp = 2 ** (2 - 1) - 1
-    s = Qp / x.abs().max(dim=-1, keepdim=True).values.clamp(min=1e-5)
+    s = Qp #/ x.abs().max(dim=-1, keepdim=True).values.clamp(min=1e-5)
     result = (x * s + torch.rand_like(weight)).floor().clamp(Qn, Qp) / s
     return result.type(dtype)
 
@@ -42,7 +42,7 @@ def QF_2b(weight):
     x = weight.float()
     Qn = -2 ** (2 - 1)
     Qp = 2 ** (2 - 1) - 1
-    s = Qp / x.abs().max(dim=-1, keepdim=True).values.clamp(min=1e-5)
+    s = Qp #/ x.abs().max(dim=-1, keepdim=True).values.clamp(min=1e-5)
     result = (x * s + torch.rand_like(weight)).floor().clamp(Qn, Qp) / s
     return result.type(dtype)
 
