@@ -17,11 +17,11 @@ for rounds in [4]:
     for hidden_size in hidden_sizes:
         for lr in lrs:
             name = f'_lr{lr}_L{layers}_hs{hidden_size}'
-            BitLinear.default_stochastic_rounding = True
-            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bs8b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_8b)
-            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bs4b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_4b)
-            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bs3b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_3b)
-            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bs2b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_2b)
+            #BitLinear.default_stochastic_rounding = True
+            #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bs8b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_8b)
+            #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bs4b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_4b)
+            #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bs3b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_3b)
+            #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"bs2b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_2b)
 
             BitLinear.default_stochastic_rounding = False
             train(bitnet_ref(hidden_size=hidden_size, layers=layers),"br8b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_8b)
