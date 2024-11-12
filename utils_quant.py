@@ -1,6 +1,7 @@
 import math
 import torch
 from torch import nn
+from scipy.stats import entropy
 import wandb
 
 printed_layers = set()        
@@ -83,12 +84,25 @@ def quantize_weights(model: nn.Module, qf):
 def get_weight_distribution(model: nn.Module):
     collection = {}
     all_weights = []
+    zeros = 0
+    round_zeros = 0
     for name, layer in model.named_modules():
         if type(layer) in [BitLinear]:
             weights = layer.weight.data.cpu().numpy().flatten()
             all_weights.extend(weights)
-            collection[name] = wandb.Histogram(weights)
-    collection["all"] = wandb.Histogram(all_weights)
+            collection[name + "_h"] = wandb.Histogram(weights)
+            zero_count = (layer.weight.data == 0).sum().item() 
+            # ratio of weights that are zero
+            collection[name + "_0r"] = zero_count / layer.weight.numel()
+            round_zero_count = (layer.weight.data.round() == 0).sum().item()
+            # ratio of weights that round to zero
+            collection[name + "_r0r"] = round_zero_count / layer.weight.numel()
+            zeros += zero_count
+            round_zeros += round_zero_count
+    collection["all_h"] = wandb.Histogram(all_weights)
+    collection["all_0r"] = zeros / len(all_weights)
+    collection["all_r0r"] = round_zeros / len(all_weights)
+    collection["all_entropy"] = entropy(all_weights, base=2)
     return collection
 
 
