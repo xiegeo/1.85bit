@@ -1,4 +1,4 @@
-import time, os, json, socket
+import time, os, json, socket, random
 import torch, wandb
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
@@ -47,7 +47,8 @@ def get_data_loader(dataset_type,train_subset, max_length, shuffle=True, pre_gen
             raise ValueError(f"dataset type {dataset_type} not found in dataset {dataset.keys()}")
         sub_dataset = dataset[dataset_type]
         if not pre_generate:
-            sub_dataset = sub_dataset.select(range(train_subset))
+            indices = random.sample(range(len(sub_dataset)), train_subset)
+            sub_dataset = sub_dataset.select(indices)
         tokenized_dataset = sub_dataset.map(
             lambda x: tokenizer(
                 x['text'], padding="max_length", max_length=max_length, truncation=True, return_tensors='pt'
@@ -56,7 +57,8 @@ def get_data_loader(dataset_type,train_subset, max_length, shuffle=True, pre_gen
             tokenized_dataset.save_to_disk(sfn)
     tokenized_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
     print(f"use {dataset_type} dataset with max_length={max_length}, train_subset={train_subset}, number of tokens={max_length*train_subset}")
-    tokenized_dataset = torch.utils.data.Subset(tokenized_dataset, indices=range(train_subset))
+    indices = random.sample(range(len(tokenized_dataset)), train_subset)
+    tokenized_dataset = torch.utils.data.Subset(tokenized_dataset, indices=indices)
 
     # Define your dataloaders
     return torch.utils.data.DataLoader(tokenized_dataset, batch_size=batch_size, shuffle=shuffle)
