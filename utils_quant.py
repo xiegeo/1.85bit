@@ -1,6 +1,7 @@
 import math
 import torch
 from torch import nn
+import numpy as np
 from scipy.stats import entropy
 import wandb
 
@@ -75,7 +76,7 @@ def quantize_weights(model: nn.Module, qf):
         return
     global printed_layers
     for layer in model.modules():
-        if type(layer) in [BitLinear]:
+        if type(layer) in [BitLinear, nn.Linear]:
             layer.weight.data = qf(layer.weight.data)
             if type(layer) not in printed_layers:
                 print(f"[Y] Layer {type(layer)} weights are quantized")
@@ -87,7 +88,7 @@ def get_weight_distribution(model: nn.Module):
     zeros = 0
     round_zeros = 0
     for name, layer in model.named_modules():
-        if type(layer) in [BitLinear]:
+        if type(layer) in [BitLinear,nn.Linear]:
             weights = layer.weight.data.cpu().numpy().flatten()
             all_weights.extend(weights)
             collection[name + "_h"] = wandb.Histogram(weights)
@@ -102,7 +103,19 @@ def get_weight_distribution(model: nn.Module):
     collection["all_h"] = wandb.Histogram(all_weights)
     collection["all_0r"] = zeros / len(all_weights)
     collection["all_r0r"] = round_zeros / len(all_weights)
-    collection["all_entropy"] = entropy(all_weights, base=2)
+    
+    # Calculate the entropy for discrete weights up to 8 bits ()
+    value_counts = np.bincount(np.array(all_weights*(2**7), dtype=int)+1024)
+    collection["all_entropy_c8"] = entropy(value_counts, base=2)
+    # Calculate the information density (entropy) for floating-point weights
+    hist, bin_edges = np.histogram(all_weights, bins='auto', density=True)
+    hist += 1e-10  # Add a small constant to avoid log(0)
+    collection["all_entropy_f"] = entropy(hist, base=2)
+    
+    collection["all_abs_avg"] = np.mean(np.abs(all_weights))
+    collection["all_mean"] = np.mean(all_weights)
+    collection["all_std"] = np.std(all_weights)
+    
     return collection
 
 

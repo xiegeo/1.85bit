@@ -17,11 +17,13 @@ for rounds in [4]:
     for hidden_size in hidden_sizes:
         for lr in lrs:
             name = f'_lr{lr}_L{layers}_hs{hidden_size}'
-            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"br3m.99top"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr,betas=(0.99,0.999)), QF=QF_3_top)
+            #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"br3m.99top"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr,betas=(0.99,0.999)), QF=QF_3_top)
 
-            train(bitnet_ref(hidden_size=hidden_size, layers=layers),"br8b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_8b)
+            #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"br8b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_8b)
 
             train(llama_ref(hidden_size=hidden_size, layers=layers),"ll8b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_8b)
+
+            train(llama_ref(hidden_size=hidden_size, layers=layers),"llama"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr))
 
             #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"br3top"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_3_top)
             #train(bitnet_ref(hidden_size=hidden_size, layers=layers),"br3m.99"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr,betas=(0.99,0.999)), QF=QF_3)
