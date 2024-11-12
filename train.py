@@ -328,17 +328,22 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
                        "stochastic_rounding": BitLinear.default_stochastic_rounding})
             
             scheduler.step()
-            
+            if 'torch_xla' in globals():
+                xm.mark_step()
             if batch_idx % ((512*(2**n)//batch_size)) == 0:
                 n += 1
                 sample_output2(model, batch_idx, min(batch_idx*batch_size//8, validation_size))
+                if 'torch_xla' in globals():
+                    xm.mark_step()
             
         print(f"Epoch {epoch + 1} completed. Average Loss: {avg_loss}")
     sample_output2(model,-1,validation_size)
     wandb.finish()    
     try:
         # Save the model
-        model.cpu()
+        if device.type != 'cuda':
+            print(f"converting model from {device.type} to cpu for saving")
+            model.cpu()
         model.save_pretrained(f'{model_save_path}/finish')
     except Exception as e:
         print('Failed to save model: {e}')
