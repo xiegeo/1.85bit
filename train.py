@@ -25,8 +25,11 @@ try:
 except ImportError as e:
     print(f"TPU not available: {e}")
 
-if torch.cuda.is_available():
+if 'torch_xla' in globals():
+    print(f'using xla_device: {device}')
+elif torch.cuda.is_available():
     device = torch.device("cuda")
+    
 print(f'use {device}')
 
 
