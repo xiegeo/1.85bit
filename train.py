@@ -211,6 +211,8 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
     if validation_size > 0:
         validation_loader = get_validation_loader(validation_size,max_length)
         
+    train_loader = get_training_loader(train_subset,max_length)
+        
     wandb.init(project="npl185", name=model_name,# mode="offline",
             config={
                 "tokenizer_path":tokenizer_path,
@@ -281,8 +283,6 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
     recent_loss_100 = 0
     recent_loss_1000 = 0
     recent_loss_10000 = 0
-
-    train_loader = get_training_loader(train_subset,max_length)
 
     for epoch in range(1):  # Number of epochs
         #model.save_pretrained(f'{model_save_path}/e{epoch}')
