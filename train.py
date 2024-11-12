@@ -39,7 +39,7 @@ def get_data_loader(dataset_type,train_subset, max_length, shuffle=True, pre_gen
         sfn = "../"+sfn
     if os.path.exists(sfn):
         tokenized_dataset_full = load_from_disk(sfn)
-    else:
+    elif pre_generate:
         # use the TinyStories dataset
         dataset = load_dataset('roneneldan/TinyStories')
         print(dataset.keys())
@@ -50,8 +50,19 @@ def get_data_loader(dataset_type,train_subset, max_length, shuffle=True, pre_gen
             lambda x: tokenizer(
                 x['text'], padding="max_length", max_length=max_length, truncation=True, return_tensors='pt'
             ), batched=True)
-        if pre_generate:
-            tokenized_dataset_full.save_to_disk(sfn)
+        tokenized_dataset_full.save_to_disk(sfn)
+    else:
+        # only tokenize a sub set
+        dataset = load_dataset('roneneldan/TinyStories')
+        print(dataset.keys())
+        sub_dataset = dataset[dataset_type]
+        sub_dataset = torch.utils.data.Subset(sub_dataset, indices=range(train_subset))
+        tokenized_sub_dataset = sub_dataset.map(
+            lambda x: tokenizer(
+                x['text'], padding="max_length", max_length=max_length, truncation=True, return_tensors='pt'
+            ), batched=True)
+        tokenized_sub_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
+        return torch.utils.data.DataLoader(tokenized_sub_dataset, batch_size=batch_size, shuffle=shuffle)
     tokenized_dataset_full.set_format(type='torch', columns=['input_ids', 'attention_mask'])
     print(f"use {dataset_type} dataset with max_length={max_length}, train_subset={train_subset}, number of tokens={max_length*train_subset}")
     tokenized_dataset = torch.utils.data.Subset(tokenized_dataset_full, indices=range(train_subset))
