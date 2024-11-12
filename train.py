@@ -20,10 +20,8 @@ try:
     import torch_xla
     import torch_xla.core.xla_model as xm
     import torch_xla.distributed.parallel_loader as pl
-    if xm.xla_device_hw() == 'TPU':
-        device = xm.xla_device()
-    else:
-        print(f"TPU not available: found {xm.xla_device_hw()}")
+    device = xm.xla_device()
+    print(f'xla_device: {device}')
 except ImportError as e:
     print(f"TPU not available: {e}")
 
