@@ -38,34 +38,25 @@ def get_data_loader(dataset_type,train_subset, max_length, shuffle=True, pre_gen
     if not os.path.exists(sfn) and os.path.exists("../"+sfn): # find the file if it's in the parent directory
         sfn = "../"+sfn
     if os.path.exists(sfn):
-        tokenized_dataset_full = load_from_disk(sfn)
-    elif pre_generate:
+        tokenized_dataset = load_from_disk(sfn)
+    else:
         # use the TinyStories dataset
         dataset = load_dataset('roneneldan/TinyStories')
         print(dataset.keys())
         if dataset_type not in dataset:
             raise ValueError(f"dataset type {dataset_type} not found in dataset {dataset.keys()}")
         sub_dataset = dataset[dataset_type]
-        tokenized_dataset_full = sub_dataset.map(
+        if not pre_generate:
+            sub_dataset = sub_dataset.select(range(train_subset))
+        tokenized_dataset = sub_dataset.map(
             lambda x: tokenizer(
                 x['text'], padding="max_length", max_length=max_length, truncation=True, return_tensors='pt'
             ), batched=True)
-        tokenized_dataset_full.save_to_disk(sfn)
-    else:
-        # only tokenize a sub set
-        dataset = load_dataset('roneneldan/TinyStories')
-        print(dataset.keys())
-        sub_dataset = dataset[dataset_type]
-        sub_dataset = torch.utils.data.Subset(sub_dataset, indices=range(train_subset))
-        tokenized_sub_dataset = sub_dataset.map(
-            lambda x: tokenizer(
-                x['text'], padding="max_length", max_length=max_length, truncation=True, return_tensors='pt'
-            ), batched=True)
-        tokenized_sub_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
-        return torch.utils.data.DataLoader(tokenized_sub_dataset, batch_size=batch_size, shuffle=shuffle)
-    tokenized_dataset_full.set_format(type='torch', columns=['input_ids', 'attention_mask'])
+        if pre_generate:
+            tokenized_dataset.save_to_disk(sfn)
+    tokenized_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
     print(f"use {dataset_type} dataset with max_length={max_length}, train_subset={train_subset}, number of tokens={max_length*train_subset}")
-    tokenized_dataset = torch.utils.data.Subset(tokenized_dataset_full, indices=range(train_subset))
+    tokenized_dataset = torch.utils.data.Subset(tokenized_dataset, indices=range(train_subset))
 
     # Define your dataloaders
     return torch.utils.data.DataLoader(tokenized_dataset, batch_size=batch_size, shuffle=shuffle)
