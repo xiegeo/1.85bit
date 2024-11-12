@@ -234,12 +234,15 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
 
         
     def sample_output(model, batch_idx=-1, validation_size=0):
+        tqdm.write("enter sample_output")
         return_to_train = False
         if model.training:
             model.eval()
+            tqdm.write("model.eval()")
             return_to_train = True
         with torch.no_grad():
             for text in ["Once","Alice and Bob", "In a galaxy far far away","The lazy dog"]:
+                tqdm.write(text)
                 inputs = tokenizer(text, return_tensors='pt').to(device)
                 outputs = model.generate(**inputs, max_length=max_length)
                 decoded = tokenizer.decode(outputs[0], skip_special_tokens=True)
