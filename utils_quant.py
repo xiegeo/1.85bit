@@ -10,6 +10,28 @@ def QF_noop(weight):
 def QF_3(weight):
     return stochastic_weight_quant_no_scale(weight)
 
+def QF_3_top(weight):
+    dtype = weight.dtype
+    weight = weight.float().clamp(-1, 1)
+    rw = weight.round()
+    d = weight - rw
+    ad = d.abs()
+    
+    # Get the number of weights to change to much the learning rate
+    ad_sum = ad.view(-1).sum()
+    k = (ad_sum + torch.rand(1, device=weight.device)).floor().long().item()
+    
+    # Get the top k indices
+    if k > 0:
+        selected = ad.view(-1).topk(k, largest=True).indices
+        
+        # Update rw based on selected indices
+        rw_flat = rw.view(-1)
+        d_flat = d.view(-1)
+        rw_flat[selected] += d_flat[selected].sign()
+    
+    return rw.type(dtype)
+
 def QF_8b(weight): 
     dtype = weight.dtype
     x = weight.float()
