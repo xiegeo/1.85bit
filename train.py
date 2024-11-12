@@ -31,7 +31,7 @@ batch_size = 8 # use the same batch size for consistent reporting
 
 
 
-def get_data_loader(dataset_type,train_subset, max_length, shuffle=True):
+def get_data_loader(dataset_type,train_subset, max_length, shuffle=True, pre_generate=False):
     sfn = f"tokenized_{dataset_type}_dataset_{max_length}"
     if tokenizer_path == "1bitLLM/bitnet_b1_58-large":
         sfn = f"bitnet_{dataset_type}_tokens_{max_length}"
@@ -50,7 +50,8 @@ def get_data_loader(dataset_type,train_subset, max_length, shuffle=True):
             lambda x: tokenizer(
                 x['text'], padding="max_length", max_length=max_length, truncation=True, return_tensors='pt'
             ), batched=True)
-        tokenized_dataset_full.save_to_disk(sfn)
+        if pre_generate:
+            tokenized_dataset_full.save_to_disk(sfn)
     tokenized_dataset_full.set_format(type='torch', columns=['input_ids', 'attention_mask'])
     print(f"use {dataset_type} dataset with max_length={max_length}, train_subset={train_subset}, number of tokens={max_length*train_subset}")
     tokenized_dataset = torch.utils.data.Subset(tokenized_dataset_full, indices=range(train_subset))
