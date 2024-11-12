@@ -245,6 +245,8 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
                 decoded = tokenizer.decode(outputs[0], skip_special_tokens=True)
                 tqdm.write(json.dumps(decoded))
                 wandb.log({'batch_idx':batch_idx, 'text': text, 'story': json.dumps(decoded), "stochastic_rounding": BitLinear.default_stochastic_rounding})
+                if 'torch_xla' in globals():
+                    xm.mark_step()
             if validation_size > 0:
                 total_loss = 0.0
                 batches = 0
@@ -256,6 +258,8 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
                     if batches * batch_size >= validation_size:
                         break
                     progress_bar.set_postfix({'validation_loss': total_loss / batches})
+                    if 'torch_xla' in globals():
+                        xm.mark_step()
                 avg_loss = total_loss / batches
                 progress_bar.write(f"Validation Loss: {avg_loss}, validation_size={batches*batch_size}, batch_idx={batch_idx}, stochastic_rounding={BitLinear.default_stochastic_rounding}")
                 wandb.log({'batch_idx':batch_idx, 'validation_loss': avg_loss, 'validation_size':batches*batch_size, "stochastic_rounding": BitLinear.default_stochastic_rounding})
@@ -263,12 +267,12 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
                 if BitLinear.default_stochastic_rounding:
                     key = "stochastic"
                 wandb.log({'batch_idx':batch_idx, f'validation_loss_'+key: avg_loss, 'validation_size':batches*batch_size, "stochastic_rounding": BitLinear.default_stochastic_rounding})
-
+            if 'torch_xla' in globals():
+                xm.mark_step()
         if return_to_train:
             model.train()
 
     def sample_output2(model, batch_idx=-1, validation_size=0):
-        wandb.log({'weights':get_weight_distribution(model), 'batch_idx':batch_idx, "stochastic_rounding": BitLinear.default_stochastic_rounding})
         if QF == QF_3: # rounding does nothing when weights are already quantized
             sample_output(model, batch_idx, validation_size)
             return
@@ -333,12 +337,14 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
             scheduler.step()
             if 'torch_xla' in globals():
                 xm.mark_step()
-            elif batch_idx % ((512*(2**n)//batch_size)) == 0:
+            if batch_idx % ((512*(2**n)//batch_size)) == 0:
                 n += 1
                 sample_output2(model, batch_idx, min(batch_idx*batch_size//8, validation_size))
                 if 'torch_xla' in globals():
                     xm.mark_step()
-            
+            if batch_idx % 128 == 0:
+                wandb.log({'weights':get_weight_distribution(model), 'batch_idx':batch_idx, "stochastic_rounding": BitLinear.default_stochastic_rounding})
+
         print(f"Epoch {epoch + 1} completed. Average Loss: {avg_loss}")
     sample_output2(model,-1,validation_size)
     wandb.finish()    
