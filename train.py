@@ -241,17 +241,18 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
             tqdm.write("model.eval()")
             return_to_train = True
         with torch.no_grad():
-            for text in ["Once","Alice and Bob", "In a galaxy far far away","The lazy dog"]:
-                tqdm.write(text)
-                inputs = tokenizer(text, return_tensors='pt').to(device)
-                tqdm.write("text tokenized")
-                outputs = model.generate(**inputs, max_length=max_length)
-                tqdm.write("outputs generated")
-                decoded = tokenizer.decode(outputs[0], skip_special_tokens=True)
-                tqdm.write(json.dumps(decoded))
-                wandb.log({'batch_idx':batch_idx, 'text': text, 'story': json.dumps(decoded), "stochastic_rounding": BitLinear.default_stochastic_rounding})
-                if 'torch_xla' in globals():
-                    xm.mark_step()
+            if 'torch_xla' not in globals():
+                for text in ["Once","Alice and Bob", "In a galaxy far far away","The lazy dog"]:
+                    #tqdm.write(text)
+                    inputs = tokenizer(text, return_tensors='pt').to(device)
+                    #tqdm.write("text tokenized")
+                    outputs = model.generate(**inputs, max_length=max_length)
+                    #tqdm.write("outputs generated")
+                    decoded = tokenizer.decode(outputs[0], skip_special_tokens=True)
+                    tqdm.write(json.dumps(decoded))
+                    wandb.log({'batch_idx':batch_idx, 'text': text, 'story': json.dumps(decoded), "stochastic_rounding": BitLinear.default_stochastic_rounding})
+                    if 'torch_xla' in globals():
+                        xm.mark_step()
             if validation_size > 0:
                 total_loss = 0.0
                 batches = 0
