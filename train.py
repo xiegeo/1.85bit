@@ -205,7 +205,10 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
     validation_size = (10000//batch_size) * batch_size
     if device.type == 'cpu':
         validation_size = (1000//batch_size) * batch_size
-
+    validation_loader = None
+    if validation_size > 0:
+        validation_loader = get_validation_loader(validation_size,max_length)
+        
     wandb.init(project="npl185", name=model_name,# mode="offline",
             config={
                 "tokenizer_path":tokenizer_path,
@@ -221,9 +224,7 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
                 "default_stochastic_rounding": BitLinear.default_stochastic_rounding,
                 "quantize_training_weights": QF.__name__,
                 })
-    validation_loader = None
-    if validation_size > 0:
-        validation_loader = get_validation_loader(validation_size,max_length)
+
         
     def sample_output(model, batch_idx=-1, validation_size=0):
         return_to_train = False
@@ -282,7 +283,7 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
     train_loader = get_training_loader(train_subset,max_length)
 
     for epoch in range(1):  # Number of epochs
-        model.save_pretrained(f'{model_save_path}/e{epoch}')
+        #model.save_pretrained(f'{model_save_path}/e{epoch}')
         total_loss = 0.0  # Initialize total loss for this epoch
         progress_bar = tqdm(train_loader, desc=f"E {epoch + 1}", position=0, leave=True)
         n = 1
@@ -331,12 +332,16 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
                 sample_output2(model, batch_idx, min(batch_idx*batch_size//8, validation_size))
             
         print(f"Epoch {epoch + 1} completed. Average Loss: {avg_loss}")
-    # Save the model
-    model.save_pretrained(f'{model_save_path}/finish')
+    sample_output2(model,-1,validation_size)
+    wandb.finish()    
+    try:
+        # Save the model
+        model.cpu()
+        model.save_pretrained(f'{model_save_path}/finish')
+    except Exception as e:
+        print('Failed to save model: {e}')
 
     print('Finished Training')
-    sample_output2(model,-1,validation_size)
-    wandb.finish()
 
 # only run if main
 if __name__ == "__main__":
