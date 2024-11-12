@@ -330,7 +330,7 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
             scheduler.step()
             if 'torch_xla' in globals():
                 xm.mark_step()
-            if batch_idx % ((512*(2**n)//batch_size)) == 0:
+            elif batch_idx % ((512*(2**n)//batch_size)) == 0:
                 n += 1
                 sample_output2(model, batch_idx, min(batch_idx*batch_size//8, validation_size))
                 if 'torch_xla' in globals():
