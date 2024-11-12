@@ -1,6 +1,7 @@
 import math
 import torch
 from torch import nn
+import wandb
 
 printed_layers = set()        
 
@@ -78,6 +79,18 @@ def quantize_weights(model: nn.Module, qf):
             if type(layer) not in printed_layers:
                 print(f"[Y] Layer {type(layer)} weights are quantized")
                 printed_layers.add(type(layer))
+                
+def get_weight_distribution(model: nn.Module):
+    collection = {}
+    all_weights = []
+    for name, layer in model.named_modules():
+        if type(layer) in [BitLinear]:
+            weights = layer.weight.data.cpu().numpy().flatten()
+            all_weights.extend(weights)
+            collection[name] = wandb.Histogram(weights)
+    collection["all"] = wandb.Histogram(all_weights)
+    return collection
+
 
 def weight_quant(weight, num_bits=1):
     dtype = weight.dtype

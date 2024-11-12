@@ -11,7 +11,7 @@ from tokenization_bitnet import BitnetTokenizer
 from transformers import AutoTokenizer
 
 from models import tiny_stories_ref, bitnet_ref, llama_ref
-from utils_quant import BitLinear, quantize_weights, QF_noop, QF_3
+from utils_quant import BitLinear, quantize_weights, QF_noop, QF_3, get_weight_distribution
 
 device = torch.device("cpu")
 if torch.cuda.is_available():
@@ -244,6 +244,7 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
             model.train()
 
     def sample_output2(model, batch_idx=-1, validation_size=0):
+        wandb.log({'weights':get_weight_distribution(model), 'batch_idx':batch_idx, "stochastic_rounding": BitLinear.default_stochastic_rounding})
         if QF == QF_3: # rounding does nothing when weights are already quantized
             sample_output(model, batch_idx, validation_size)
             return
