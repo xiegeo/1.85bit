@@ -14,6 +14,19 @@ from models import tiny_stories_ref, bitnet_ref, llama_ref
 from utils_quant import BitLinear, quantize_weights, QF_noop, QF_3, get_weight_distribution
 
 device = torch.device("cpu")
+
+# Try to import torch_xla for TPU support
+try:
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+    import torch_xla.distributed.parallel_loader as pl
+    if xm.xla_device_hw() == 'TPU':
+        device = xm.xla_device()
+    else:
+        print(f"TPU not available: found {xm.xla_device_hw()}")
+except ImportError as e:
+    print(f"TPU not available: {e}")
+
 if torch.cuda.is_available():
     device = torch.device("cuda")
 print(f'use {device}')
@@ -46,14 +59,14 @@ def get_data_loader(dataset_type,train_subset, max_length, shuffle=True, pre_gen
         if dataset_type not in dataset:
             raise ValueError(f"dataset type {dataset_type} not found in dataset {dataset.keys()}")
         sub_dataset = dataset[dataset_type]
-        if not pre_generate:
+        if not pre_generate: # select a sub set of the dataset now if we're not pre-generating
             indices = random.sample(range(len(sub_dataset)), train_subset)
             sub_dataset = sub_dataset.select(indices)
         tokenized_dataset = sub_dataset.map(
             lambda x: tokenizer(
                 x['text'], padding="max_length", max_length=max_length, truncation=True, return_tensors='pt'
             ), batched=True)
-        if pre_generate:
+        if pre_generate: # save the tokenized dataset if we're pre-generating
             tokenized_dataset.save_to_disk(sfn)
     tokenized_dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
     print(f"use {dataset_type} dataset with max_length={max_length}, train_subset={train_subset}, number of tokens={max_length*train_subset}")
