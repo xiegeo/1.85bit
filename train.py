@@ -71,8 +71,10 @@ def get_data_loader(dataset_type,train_subset, max_length, shuffle=True, pre_gen
     indices = random.sample(range(len(tokenized_dataset)), train_subset)
     tokenized_dataset = torch.utils.data.Subset(tokenized_dataset, indices=indices)
 
-    # Define your dataloaders
-    return torch.utils.data.DataLoader(tokenized_dataset, batch_size=batch_size, shuffle=shuffle)
+    data_loader = torch.utils.data.DataLoader(tokenized_dataset, batch_size=batch_size, shuffle=shuffle)
+    if 'torch_xla' in globals():
+        data_loader = pl.MpDeviceLoader(data_loader, device)
+    return data_loader
 
 def get_training_loader(train_subset, max_length):
     return get_data_loader('train', train_subset, max_length, shuffle=True)
