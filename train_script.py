@@ -17,7 +17,7 @@ for rounds in [64]:
     for hidden_size in hidden_sizes:
         for lr in lrs:
             name = f'_lr{lr}_L{layers}_hs{hidden_size}'
-            train(llama_ref(hidden_size=hidden_size, layers=layers),"ll8b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_8b)
+            train(llama_ref(hidden_size=hidden_size, layers=layers),"ll4b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_4b)
             #train(llama_ref(hidden_size=hidden_size, layers=layers),"llama"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr))
 
 """
