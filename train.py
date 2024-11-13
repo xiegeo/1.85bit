@@ -234,11 +234,11 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
 
         
     def sample_output(model, batch_idx=-1, validation_size=0):
-        tqdm.write("enter sample_output")
+        #tqdm.write("enter sample_output")
         return_to_train = False
         if model.training:
             model.eval()
-            tqdm.write("model.eval()")
+            #tqdm.write("model.eval()")
             return_to_train = True
         with torch.no_grad():
             if 'torch_xla' not in globals():
