@@ -343,15 +343,16 @@ def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimiz
             scheduler.step()
             if 'torch_xla' in globals():
                 xm.mark_step()
+                
             if batch_idx % ((512*(2**n)//batch_size)) == 0:
                 n += 1
+                wandb.log({'weights':get_weight_distribution(model), 'batch_idx':batch_idx, "stochastic_rounding": BitLinear.default_stochastic_rounding})
                 sample_output2(model, batch_idx, min(batch_idx*batch_size//8, validation_size))
                 if 'torch_xla' in globals():
                     xm.mark_step()
-            if batch_idx % 128 == 0:
-                wandb.log({'weights':get_weight_distribution(model), 'batch_idx':batch_idx, "stochastic_rounding": BitLinear.default_stochastic_rounding})
 
         print(f"Epoch {epoch + 1} completed. Average Loss: {avg_loss}")
+    wandb.log({'weights':get_weight_distribution(model), 'batch_idx':batch_idx, "stochastic_rounding": BitLinear.default_stochastic_rounding})
     sample_output2(model,-1,validation_size)
     wandb.finish()    
     try:
