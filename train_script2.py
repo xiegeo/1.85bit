@@ -6,7 +6,7 @@ from utils_quant import BitLinear, quantize_weights, QF_noop, QF_3, QF_2b, QF_3b
 from train import train, AdamWFun, SGDFun, get_data_loader
 
 
-for rounds in [0.1]:
+for rounds in [64]:
     train_subset = int(rounds*1024*1024//64)
     hidden_sizes = [128]
     layers = 1
