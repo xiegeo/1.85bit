@@ -104,8 +104,8 @@ def get_weight_distribution(model: nn.Module):
     collection["all_0r"] = zeros / len(all_weights)
     collection["all_r0r"] = round_zeros / len(all_weights)
     
-    # Calculate the entropy for discrete weights up to 8 bits ()
-    value_counts = np.bincount(np.array(all_weights*(2**7), dtype=int)+1024)
+    # Calculate the entropy for discrete weights up to 7 decimal bits 
+    value_counts = np.bincount(np.array(np.round(all_weights*(2**7)), dtype=int)+1024)
     collection["all_entropy_c8"] = entropy(value_counts, base=2)
     # Calculate the information density (entropy) for floating-point weights
     hist, bin_edges = np.histogram(all_weights, bins='auto', density=True)
