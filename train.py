@@ -11,7 +11,7 @@ from tokenization_bitnet import BitnetTokenizer
 from transformers import AutoTokenizer
 
 from models import tiny_stories_ref, bitnet_ref, llama_ref
-from utils_quant import BitLinear, quantize_weights, QF_noop, QF_3, get_weight_distribution
+from utils_quant import BitLinear, quantize_weights, QF_noop, QF_3, QF_3_top, get_weight_distribution
 
 device = torch.device("cpu")
 
@@ -183,7 +183,7 @@ class DynamicLearningRate(_LRScheduler):
 
 def train(model,model_name, cost, train_subset = 1024*16, max_length=64, optimizer_function=AdamWFun(), QF=QF_noop):
     
-    BitLinear.QW = (QF == QF_3)
+    BitLinear.QW = (QF == QF_3) or (QF == QF_3_top) # treat weights as already quantized to {-s,0,s}
     
     # Initialize your model
     #model = AutoModel.from_config(AutoConfig.from_dict(bitnet_64_2))
