@@ -7,32 +7,63 @@ import wandb
 
 printed_layers = set()        
 
+scale = 1.0
+topk_bitnet_scaling = False # if True, use BitNet's scaling for top-k weights
+
+prefer_zero = 1.0
+
+def set_weight_scale(s:float):
+    global scale
+    scale = s
+
+def set_topk_bitnet_scaling(t:bool):
+    global topk_bitnet_scaling
+    topk_bitnet_scaling = t
+
+def set_prefer_zero(pz:float):
+    global prefer_zero
+    prefer_zero = pz
+    
+
 def QF_noop(weight):
     return weight
     
 def QF_3(weight):
-    return stochastic_weight_quant_no_scale(weight)
+    return stochastic_weight_quant_set_scale(weight)
 
 def QF_3_top(weight):
     dtype = weight.dtype
-    weight = weight.float().clamp(-1, 1)
+    global scale
+    global prefer_zero
+    global topk_bitnet_scaling
+    if topk_bitnet_scaling:
+        scale = 1 / weight.abs().mean().clamp(min=1e-5)
+    weight = (weight.float()*scale).clamp(-1, 1)
     rw = weight.round()
     d = weight - rw
+    d2 = None
+    if prefer_zero != 1:
+        # scale d by prefer_zero for weights that are not zero
+        d2 = d * rw.abs() * (prefer_zero-1)
     ad = d.abs()
     
-    # Get the number of weights to change to much the learning rate
+    # Get the number of weights to change based on the learning rate
     ad_sum = ad.view(-1).sum()
     k = (ad_sum + torch.rand(1, device=weight.device)).floor().long().item()
     
     # Get the top k indices
     if k > 0:
-        selected = ad.view(-1).topk(k, largest=True).indices
+        if d2 is None:
+            selected = ad.view(-1).topk(k, largest=True).indices
+        else:
+            # use original d for calculating k, but select based on d + d2
+            selected = (d + d2).abs().view(-1).topk(k, largest=True).indices
         
         # Update rw based on selected indices
         rw_flat = rw.view(-1)
         d_flat = d.view(-1)
         rw_flat[selected] += d_flat[selected].sign()
-    
+    rw = rw/scale
     return rw.type(dtype)
 
 def QF_8b(weight): 
@@ -83,23 +114,26 @@ def quantize_weights(model: nn.Module, qf):
                 printed_layers.add(type(layer))
                 
 def get_weight_distribution(model: nn.Module):
+    global scale
     collection = {}
     all_weights = []
     zeros = 0
     round_zeros = 0
     for name, layer in model.named_modules():
         if type(layer) in [BitLinear,nn.Linear]:
-            weights = layer.weight.data.cpu().numpy().flatten()
-            all_weights.extend(weights)
+            scaled_gpu = layer.weight.data*scale
+            weights = scaled_gpu.cpu().numpy().flatten()
+            all_weights.append(weights)
             collection[name + "_h"] = wandb.Histogram(weights)
             zero_count = (layer.weight.data == 0).sum().item() 
             # ratio of weights that are zero
             collection[name + "_0r"] = zero_count / layer.weight.numel()
-            round_zero_count = (layer.weight.data.round() == 0).sum().item()
+            round_zero_count = (scaled_gpu.round() == 0).sum().item()
             # ratio of weights that round to zero
             collection[name + "_r0r"] = round_zero_count / layer.weight.numel()
             zeros += zero_count
             round_zeros += round_zero_count
+    all_weights = np.concatenate(all_weights)
     collection["all_h"] = wandb.Histogram(all_weights)
     collection["all_0r"] = zeros / len(all_weights)
     collection["all_r0r"] = round_zeros / len(all_weights)
@@ -133,10 +167,12 @@ def stochastic_weight_quant(weight):
     result = (weight * s + torch.rand_like(weight)).floor().clamp(-1, 1) / s
     return result.type(dtype)
 
-def stochastic_weight_quant_no_scale(weight):
+def stochastic_weight_quant_set_scale(weight):
     dtype = weight.dtype
     weight = weight.float()
-    result = (weight + torch.rand_like(weight)).floor().clamp(-1, 1)
+    global scale
+    s = scale
+    result = (weight*s + torch.rand_like(weight)).floor().clamp(-1, 1) / s
     return result.type(dtype)
 
 
