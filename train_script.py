@@ -9,15 +9,16 @@ from utils_quant import BitLinear, quantize_weights, QF_noop, QF_3, QF_2b, QF_3b
 from train import train, AdamWFun, SGDFun
 
 
-for rounds in [64]:
+for rounds in [4,32]:
     train_subset = int(rounds*1024*1024//64)
-    hidden_sizes = [128]
-    layers = 1
+    hidden_size = 256
+    layers = 2
     lrs = [0.001]
-    for hidden_size in hidden_sizes:
+    heads = [1,4,16]
+    for h in heads:
         for lr in lrs:
-            name = f'_lr{lr}_L{layers}_hs{hidden_size}'
-            train(llama_ref(hidden_size=hidden_size, layers=layers),"ll4b"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_4b)
+            name = f'_lr{lr}_L{layers}_hd{h}_hs{hidden_size}'
+            train(llama_ref(hidden_size=hidden_size, heads=h, layers=layers),"llama"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr), QF=QF_noop)
             #train(llama_ref(hidden_size=hidden_size, layers=layers),"llama"+name,hidden_size*layers, train_subset=train_subset, optimizer_function=AdamWFun(lr=lr))
 
 """

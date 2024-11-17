@@ -9,6 +9,7 @@ printed_layers = set()
 
 scale = 1.0
 topk_bitnet_scaling = False # if True, use BitNet's scaling for top-k weights
+topk_bitnet_scaling_max = 32
 
 prefer_zero = 1.0
 
@@ -16,9 +17,11 @@ def set_weight_scale(s:float):
     global scale
     scale = s
 
-def set_topk_bitnet_scaling(t:bool):
+def set_topk_bitnet_scaling(t:bool, max_scale=32):
     global topk_bitnet_scaling
+    global topk_bitnet_scaling_max
     topk_bitnet_scaling = t
+    topk_bitnet_scaling_max = max_scale
 
 def set_prefer_zero(pz:float):
     global prefer_zero
@@ -31,14 +34,19 @@ def QF_noop(weight):
 def QF_3(weight):
     return stochastic_weight_quant_set_scale(weight)
 
+def topk_scaling(weight):
+    global topk_bitnet_scaling
+    if not topk_bitnet_scaling:
+        return scale
+    global topk_bitnet_scaling_max
+    s = 1 / weight.abs().mean().clamp(min=1/topk_bitnet_scaling_max)
+    return s
+
 def QF_3_top(weight):
     dtype = weight.dtype
-    global scale
     global prefer_zero
-    global topk_bitnet_scaling
-    if topk_bitnet_scaling:
-        scale = 1 / weight.abs().mean().clamp(min=1e-5)
-    weight = (weight.float()*scale).clamp(-1, 1)
+    s = topk_scaling(weight)
+    weight = (weight.float()*s).clamp(-1, 1)
     rw = weight.round()
     d = weight - rw
     d2 = None
@@ -63,7 +71,7 @@ def QF_3_top(weight):
         rw_flat = rw.view(-1)
         d_flat = d.view(-1)
         rw_flat[selected] += d_flat[selected].sign()
-    rw = rw/scale
+    rw = rw/s
     return rw.type(dtype)
 
 def QF_8b(weight): 
@@ -115,13 +123,16 @@ def quantize_weights(model: nn.Module, qf):
                 
 def get_weight_distribution(model: nn.Module):
     global scale
+    global topk_bitnet_scaling
+    s = scale
     collection = {}
     all_weights = []
     zeros = 0
     round_zeros = 0
     for name, layer in model.named_modules():
         if type(layer) in [BitLinear,nn.Linear]:
-            scaled_gpu = layer.weight.data*scale
+            s = topk_scaling(layer.weight.data)
+            scaled_gpu = layer.weight.data * topk_scaling(layer.weight.data)
             weights = scaled_gpu.cpu().numpy().flatten()
             all_weights.append(weights)
             collection[name + "_h"] = wandb.Histogram(weights)
